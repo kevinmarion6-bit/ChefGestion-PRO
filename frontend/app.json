@@ -1,11 +1,8 @@
 {
   "expo": {
     "name": "ChefGestion Pro",
-    "slug": "chefgestion-pro",
+    "slug": "chefgestion-pro-dev",
     "version": "1.0.0",
-    "updates": {
-      "enabled": false
-    },
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -16,45 +13,29 @@
       "backgroundColor": "#000000"
     },
     "scheme": "chefgestion",
+    "updates": {
+      "enabled": false,
+      "checkAutomatically": "NEVER"
+    },
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.chefgestion.pro",
-      "infoPlist": {
-        "NSCameraUsageDescription": "Scanner vos factures et afficheurs de température",
-        "NSPhotoLibraryUsageDescription": "Accéder à vos photos pour l'analyse OCR"
-      }
+      "bundleIdentifier": "com.chefgestion.pro.dev"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"
       },
-      "package": "com.chefgestion.pro",
-      "permissions": [
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
-      ]
+      "package": "com.chefgestion.pro.dev"
     },
     "plugins": [
-      "expo-router",
-      [
-        "expo-image-picker",
-        {
-          "photosPermission": "Accès photos pour l'analyse OCR"
-        }
-      ]
+      "expo-router"
     ],
     "experiments": {
       "typedRoutes": true
-    },
-    "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "f401d42a-abdf-4169-b48f-4bbf6408b004"
-      }
     }
   }
 }
