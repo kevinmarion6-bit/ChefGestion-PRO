@@ -8,17 +8,11 @@
  * ║  4. Votre téléphone ET votre PC doivent être sur le      ║
  * ║     même réseau Wi-Fi                                     ║
  * ╚═══════════════════════════════════════════════════════════╝
- *
- * Exemple : si le terminal affiche "IP LAN : http://192.168.1.42:3001"
- * → API_BASE_URL = 'http://192.168.1.42:3001/api'
  */
 
-export const API_BASE_URL = 'http://192.168.1.122:5001/api';
-// Exemple : 'http://192.168.1.42:3001/api'
+export const API_BASE_URL = 'https://chefgestion-pro.onrender.com/api';
+export const TIMEOUT_MS = 30_000;
 
-export const TIMEOUT_MS = 30_000; // 30 secondes
-
-/** Vérifie que l'URL a bien été configurée */
 export function isConfigured(): boolean {
   return !API_BASE_URL.includes('VOTRE_IP_ICI');
 }
