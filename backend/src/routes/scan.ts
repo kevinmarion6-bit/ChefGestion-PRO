@@ -143,81 +143,91 @@ router.post('/temperature', requireAuth, upload.single('image'), async (req: Aut
       return res.status(429).json({ ok: false, error: 'Quota Google Vision atteint (33/33).' });
     }
 
-    // --- ÉTAPE 1 : PRÉ-TRAITEMENT SHARP OPTIMISÉ ---
-const processedBuffer = await sharp(req.file.buffer)
-  .resize(1000) // Un peu plus grand pour la définition des segments
-  .modulate({ brightness: 1.2, saturation: 1.5 }) // On fait "poper" les segments LED
-  .greyscale()
-  .linear(2, -0.5) // Augmente fortement le contraste : les gris deviennent noirs, le blanc reste blanc
-  .threshold(180) // On est plus sévère pour éliminer les reflets "fantômes"
-  .toBuffer();
+    // --- ÉTAPE 1 : CRÉATION DU MONTAGE (2-en-1 pour 1 seul crédit) ---
+    // On redimensionne l'originale pour limiter le poids de la requête
+    const baseImg = sharp(req.file.buffer).resize(800);
+    const metadata = await baseImg.metadata();
+    const height = metadata.height || 600;
 
-   // --- ÉTAPE 2 : EXTRACTION INTELLIGENTE ---
-const visionKey = getVisionApiKey();
-const b64 = processedBuffer.toString('base64');
-const rawText = await callVision(visionKey, b64);
-console.log('[Vision] Brut:', rawText);
+    // On prépare le calque HSL (Saturation pour LED Rouges/Bleues)
+    const hslLayer = await sharp(req.file.buffer)
+      .resize(800)
+      .modulate({ brightness: 1.2 })
+      .toColorspace('hsl')
+      .extractChannel(1) // Saturation
+      .threshold(140)
+      .toBuffer();
 
-let temperature: number | null = null;
-let confidence = 95;
-let method = 'Google Vision (Optimisé)';
+    // On fusionne : Original en haut, HSL juste en dessous
+    const compositeBuffer = await baseImg
+      .extend({
+        bottom: height,
+        background: { r: 0, g: 0, b: 0, alpha: 1 }
+      })
+      .composite([{
+        input: hslLayer,
+        top: height,
+        left: 0
+      }])
+      .toBuffer();
 
-// Normalise les signes séparés (ex: "- 19" → "-19")
-const normalized = rawText
-  .replace(/-\s+(\d)/g, '-$1')  // "- 19" → "-19"
-  .replace(/[°℃]/g, '')          // supprime symboles température
-  .replace(/[A-Za-z]/g, ' ')     // supprime lettres (labels, unités)
-  .replace(/\s+/g, ' ')
-  .trim();
-
-console.log('[Vision] Normalisé:', normalized);
-
-// Extrait tous les nombres avec signe et décimale
-const allMatches = normalized.match(/-?\d+[.,]\d+|-?\d+/g) ?? [];
-console.log('[Vision] Matches:', allMatches);
-
-const candidates = allMatches
-  .map(m => {
-    let v = m.replace(',', '.');
+    // --- ÉTAPE 2 : UN SEUL APPEL VISION (1 Crédit Google) ---
+    const visionKey = getVisionApiKey();
+    const b64 = compositeBuffer.toString('base64');
+    const rawText = await callVision(visionKey, b64);
     
-    // Correction 3 chiffres avec ou sans signe : "285" → "28.5", "-185" → "-18.5"
-    const digitsOnly = v.replace('-', '').replace('.', '');
-    if (digitsOnly.length === 3 && !v.includes('.')) {
-      v = v.slice(0, -1) + '.' + v.slice(-1);
-    }
-    
-    return parseFloat(v);
-  })
-  .filter(n => !isNaN(n) && n >= -40 && n <= 40); // MAX 40°C pour frigos
+    console.log('[Vision] Texte extrait (Montage) :', rawText);
 
-console.log('[Vision] Candidats valides:', candidates);
+    let temperature: number | null = null;
+    let confidence = 95;
+    let method = 'Google Vision (Montage Hybride)';
 
-// Prend le nombre avec le plus de chiffres (le plus précis)
-temperature = candidates.sort((a, b) => 
-  String(b).replace('-','').length - String(a).replace('-','').length
-)[0] ?? null;
+    // Nettoyage et extraction
+    const normalized = rawText
+      .replace(/-\s+(\d)/g, '-$1') 
+      .replace(/[°℃]/g, '')
+      .replace(/[A-Za-z]/g, ' ') 
+      .replace(/\s+/g, ' ')
+      .trim();
 
-    // --- ÉTAPE 3 : FALLBACK GEMINI (si Vision a échoué) ---
+    const allMatches = normalized.match(/-?\d+[.,]\d+|-?\d+/g) ?? [];
+
+    const candidates = allMatches
+      .map(m => {
+        let v = m.replace(',', '.');
+        const digitsOnly = v.replace('-', '').replace('.', '');
+        // Correction "Décimale manquante" (ex: 285 -> 28.5)
+        if (digitsOnly.length === 3 && !v.includes('.')) {
+          v = v.slice(0, -1) + '.' + v.slice(-1);
+        }
+        return parseFloat(v);
+      })
+      .filter(n => !isNaN(n) && n >= -35 && n <= 45);
+
+    // Priorité aux nombres avec décimales (souvent la sonde réelle)
+    temperature = candidates.find(n => !Number.isInteger(n)) ?? candidates[0] ?? null;
+
+    // --- ÉTAPE 3 : FALLBACK GEMINI (Seulement si Vision a tout raté) ---
     if (temperature === null) {
-      console.log("[Scan] Vision a échoué, basculement sur Gemini...");
+      console.log('[Scan] Vision Montage échoué, passage à Gemini...');
       method = 'Gemini 1.5 Flash (Fallback)';
       const apiKey = await getApiKey(userId);
-      const originalB64 = req.file.buffer.toString('base64'); // On envoie l'image originale à Gemini
-      
-      const rawGemini = await enqueueGemini(() => 
+      const originalB64 = req.file.buffer.toString('base64');
+
+      const rawGemini = await enqueueGemini(() =>
         callGemini(apiKey, PROMPTS.temperature, originalB64, req.file!.mimetype)
       );
       const dataG = parseGeminiJSON<GeminiTemperature>(rawGemini);
-      
+
       temperature = dataG?.temperature ?? null;
       confidence = dataG?.confiance ?? 50;
     }
 
     if (temperature === null) {
-      return res.status(422).json({ ok: false, error: 'Lecture impossible, même avec Gemini.' });
+      return res.status(422).json({ ok: false, error: 'Lecture impossible.' });
     }
 
-    // --- ÉTAPE 4 : UPDATE QUOTA & RÉPONSE ---
+    // --- ÉTAPE 4 : MISE À JOUR QUOTA ---
     await supabase.from('profiles')
       .update({ vision_scans_today: currentScans + 1, last_vision_reset: today })
       .eq('id', userId);

@@ -2,7 +2,8 @@ import { useEffect } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
-import { View, ActivityIndicator } from 'react-native';
+import * as NavigationBar from 'expo-navigation-bar';
+import { View, ActivityIndicator, Platform } from 'react-native';
 import { AppProvider, useApp } from '@/lib/context';
 
 import { 
@@ -17,27 +18,23 @@ import {
 
 SplashScreen.preventAutoHideAsync();
 
-// 1. On crée un composant de navigation séparé pour accéder au contexte useApp
 function NavigationGuard() {
   const { user, isLoading } = useApp();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
-    if (isLoading) return; // On attend que la lecture du storage soit finie
+    if (isLoading) return;
 
     const inAuthGroup = segments[0] === '(auth)';
 
     if (!user && !inAuthGroup) {
-      // Pas de session -> direction Login
       router.replace('/(auth)/login');
     } else if (user && inAuthGroup) {
-      // Session trouvée alors qu'on est sur le Login -> direction Scanner
       router.replace('/(tabs)/scanner');
     }
   }, [user, isLoading, segments]);
 
-  // Si on charge encore la session, on peut laisser le Splash ou mettre un spinner
   if (isLoading) {
     return (
       <View style={{ flex: 1, backgroundColor: '#000', justifyContent: 'center' }}>
@@ -59,7 +56,6 @@ function NavigationGuard() {
   );
 }
 
-// 2. Le Layout principal reste propre
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     Cinzel_400Regular,
@@ -73,6 +69,14 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded, fontError]);
+
+  // Masquage barre navigation Android
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      NavigationBar.setVisibilityAsync('hidden');
+      NavigationBar.setBehaviorAsync('overlay-swipe');
+    }
+  }, []);
 
   if (!fontsLoaded && !fontError) return null;
 
