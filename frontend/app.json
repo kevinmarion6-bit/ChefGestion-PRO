@@ -14,8 +14,9 @@
     },
     "scheme": "chefgestion",
     "updates": {
-      "enabled": false,
-      "checkAutomatically": "NEVER"
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "url": "https://u.expo.dev/63dac985-d0f6-4c0d-9214-691427bfeb72"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -36,6 +37,15 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "63dac985-d0f6-4c0d-9214-691427bfeb72"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
     }
   }
 }

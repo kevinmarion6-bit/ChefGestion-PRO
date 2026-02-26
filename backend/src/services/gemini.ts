@@ -109,25 +109,30 @@ Analyse cette image et extrais en JSON strict (sans markdown ni backticks):
 {"fournisseur":"","numero_facture":"","date":"DD/MM/YYYY","produits":[{"nom":"","unite":"kg|L|pièce|colis","prix_ht":0,"quantite":0,"total_ht":0}],"total_ht":0,"tva":0,"total_ttc":0}
 Retourne UNIQUEMENT le JSON valide.`,
 
- temperature: `Tu es un expert en lecture d'afficheurs LED industriels pour la restauration (HACCP).
-CONTEXTE : L'image montre un afficheur LED (souvent rouge ou vert sur fond noir) dans une cuisine.
-DÉFIS : Les segments peuvent être flous ou un chiffre peut être mal formé (ex: un 2 qui ressemble à un 5).
+ temperature: `Tu es un expert en lecture d'afficheurs LED industriels (HACCP).
+L'image est un recadrage serré sur l'écran d'un thermostat de cuisine.
 
-INSTRUCTIONS CRUCIALES :
-1. Repère le signe '-' à gauche pour les températures négatives.
-2. Identifie la position du point décimal (souvent un petit segment en bas à droite d'un chiffre).
-3. Si tu vois 3 chiffres sans point (ex: "185"), déduis logiquement la décimale (ex: "18.5") car un frigo à 185°C est impossible.
-4. Ignore les reflets sur la vitre.
+INSTRUCTIONS :
+1. PRIORITÉ AU SIGNE : Un tiret seul à gauche est TOUJOURS un signe moins (-).
+2. LOGIQUE DÉCIMALE : 
+   - Si tu vois un point ou une virgule, utilise-le.
+   - Si tu vois 3 chiffres sans point (ex: "185"), insère une décimale (ex: 18.5).
+   - Si le résultat est incohérent pour un frigo (> 50°C), réévalue si un segment n'est pas un reflet.
+3. ERREURS TYPES : Ne confonds pas le "8" avec un "0" mal formé. Vérifie les segments allumés.
+4. ÉTAT SPÉCIAL : Si l'afficheur indique "Lo" ou "Hi", considère cela comme une température hors plage (null).
 
-FORMAT DE SORTIE (JSON strict uniquement) :
+EXEMPLE D'ANALYSE :
+Input: Image avec chiffres rouges "02.5"
+Output: {"temperature": 2.5, "unite": "°C", "confiance": 98, "type_afficheur": "LED 7 segments", "analyse_visuelle": "Chiffres 0, 2 et 5 bien visibles avec point décimal."}
+
+FORMAT JSON STRICT :
 {
   "temperature": number | null,
   "unite": "°C",
   "confiance": 0-100,
   "type_afficheur": "LED 7 segments",
-  "analyse_visuelle": "brève description du chiffre vu"
-}
-Retourne UNIQUEMENT le JSON.`,
+  "analyse_visuelle": "ex: Vu -18.4 avec point net"
+}`,
 
   carte: `Tu es expert en analyse de cartes de restaurants français.
 Extrais tous les plats et prix TTC.

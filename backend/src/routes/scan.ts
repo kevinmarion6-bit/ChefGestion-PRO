@@ -143,33 +143,59 @@ router.post('/temperature', requireAuth, upload.single('image'), async (req: Aut
       return res.status(429).json({ ok: false, error: 'Quota Google Vision atteint (33/33).' });
     }
 
-    // --- ÉTAPE 1 : PRÉ-TRAITEMENT SHARP ---
-    // On prépare l'image pour que les LED deviennent noires sur fond blanc
-    const processedBuffer = await sharp(req.file.buffer)
-      .resize(800) // On réduit pour la vitesse
-      .greyscale() // Noir et blanc
-      .negate()    // Inversion (LED rouges/vertes deviennent foncées sur fond clair)
-      .threshold(140) // On élimine les reflets gris pour ne garder que le texte
-      .toBuffer();
+    // --- ÉTAPE 1 : PRÉ-TRAITEMENT SHARP OPTIMISÉ ---
+const processedBuffer = await sharp(req.file.buffer)
+  .resize(1000) // Un peu plus grand pour la définition des segments
+  .modulate({ brightness: 1.2, saturation: 1.5 }) // On fait "poper" les segments LED
+  .greyscale()
+  .linear(2, -0.5) // Augmente fortement le contraste : les gris deviennent noirs, le blanc reste blanc
+  .threshold(180) // On est plus sévère pour éliminer les reflets "fantômes"
+  .toBuffer();
 
-    // --- ÉTAPE 2 : APPEL GOOGLE VISION ---
-    const visionKey = getVisionApiKey();
-    const b64 = processedBuffer.toString('base64');
-    const rawText = await callVision(visionKey, b64);
+   // --- ÉTAPE 2 : EXTRACTION INTELLIGENTE ---
+const visionKey = getVisionApiKey();
+const b64 = processedBuffer.toString('base64');
+const rawText = await callVision(visionKey, b64);
+console.log('[Vision] Brut:', rawText);
+
+let temperature: number | null = null;
+let confidence = 95;
+let method = 'Google Vision (Optimisé)';
+
+// Normalise les signes séparés (ex: "- 19" → "-19")
+const normalized = rawText
+  .replace(/-\s+(\d)/g, '-$1')  // "- 19" → "-19"
+  .replace(/[°℃]/g, '')          // supprime symboles température
+  .replace(/[A-Za-z]/g, ' ')     // supprime lettres (labels, unités)
+  .replace(/\s+/g, ' ')
+  .trim();
+
+console.log('[Vision] Normalisé:', normalized);
+
+// Extrait tous les nombres avec signe et décimale
+const allMatches = normalized.match(/-?\d+[.,]\d+|-?\d+/g) ?? [];
+console.log('[Vision] Matches:', allMatches);
+
+const candidates = allMatches
+  .map(m => {
+    let v = m.replace(',', '.');
     
-    let temperature: number | null = null;
-    let confidence = 95;
-    let method = 'Google Vision (Optimisé)';
+    // Correction 3 chiffres avec ou sans signe : "285" → "28.5", "-185" → "-18.5"
+    const digitsOnly = v.replace('-', '').replace('.', '');
+    if (digitsOnly.length === 3 && !v.includes('.')) {
+      v = v.slice(0, -1) + '.' + v.slice(-1);
+    }
+    
+    return parseFloat(v);
+  })
+  .filter(n => !isNaN(n) && n >= -40 && n <= 40); // MAX 40°C pour frigos
 
-    // Nettoyage et extraction Vision
-    const cleanText = rawText.replace(/\s+/g, '').replace(',', '.');
-    const candidates = (cleanText.match(/-?\d+\.\d+|-?\d{2,3}/g) ?? []).map(val => {
-      let v = val;
-      if (/^-?\d{3}$/.test(v)) v = v.slice(0, -1) + '.' + v.slice(-1); // ex: 285 -> 28.5
-      return parseFloat(v);
-    }).filter(n => n >= -40 && n <= 60);
+console.log('[Vision] Candidats valides:', candidates);
 
-    temperature = candidates[0] ?? null;
+// Prend le nombre avec le plus de chiffres (le plus précis)
+temperature = candidates.sort((a, b) => 
+  String(b).replace('-','').length - String(a).replace('-','').length
+)[0] ?? null;
 
     // --- ÉTAPE 3 : FALLBACK GEMINI (si Vision a échoué) ---
     if (temperature === null) {
