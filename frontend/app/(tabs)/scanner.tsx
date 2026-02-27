@@ -95,9 +95,10 @@ export default function ScannerScreen() {
 
       setShowCamera(false);
       processImage(cropped.uri);
-    } catch {
-      Alert.alert("Erreur", "Problème lors du découpage.");
-    }
+    } catch (e: any) {
+  console.error('SCAN ERROR:', e);
+  Alert.alert('Erreur', e?.message ?? "Échec de l'analyse.");
+}
   }
 
   async function pickImage() {

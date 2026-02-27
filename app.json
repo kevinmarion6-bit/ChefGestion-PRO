@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "ad33f272-ebf7-4910-b9a1-1b0205451b96"
+      }
+    },
+    "android": {
+      "package": "com.kevin3166.chefgestionmonorepo"
+    }
+  }
+}

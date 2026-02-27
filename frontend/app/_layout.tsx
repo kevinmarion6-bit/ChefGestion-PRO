@@ -31,7 +31,7 @@ function NavigationGuard() {
     if (!user && !inAuthGroup) {
       router.replace('/(auth)/login');
     } else if (user && inAuthGroup) {
-      router.replace('/(tabs)/scanner');
+      router.replace('/(tabs)');
     }
   }, [user, isLoading, segments]);
 

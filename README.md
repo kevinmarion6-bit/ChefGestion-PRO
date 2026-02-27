@@ -1,143 +1,207 @@
-# ChefGestion Pro — Application Mobile
+👨‍🍳 ChefGestion Pro — 
+Note du Chef : Cet outil est le centre de commandement de la Cabana del tío. Il fusionne l'exigence du métier de cuisinier avec la puissance de l'IA pour automatiser le HACCP, le scan de factures et la surveillance des ratios. Ce n'est pas juste du code, c'est l'organisation de ma cuisine mise en poche.
 
-Application de gestion pour chefs de cuisine français.
-Stack : React Native + Expo SDK 51 + Expo Router + Gemini Vision AI
 
----
+📋 Sommaire
+    1. ✨ Fonctionnalités
+    2. 🚀 Lancement Rapide (Workflow)
+    3. 📁 Architecture Technique Détaillée
+    4. 🌐 Écosystème Cloud & API
+    5. 🛰️ Procédure de Sauvegarde & Déploiement (Git)
+    6. 📦 Distribution (APK & iOS)
+    7. 🧰 Outils & Services Utilisés
+    8. ⚠️ Limitations des API (Versions Gratuites)
+    9. 🔧 Dépannage (Troubleshooting)
+       
 
-## 🚀 Installation rapide
 
-### 1. Décompresser et installer les dépendances
+✨ Fonctionnalités
+Module
+Description
+🏠 Dashboard
+KPIs en temps réel et alertes basés sur tes stocks.
+📷 Scanner OCR
+Analyse de températures frigos, factures et étiquettes sanitaires via Gemini Vision AI et expo-camera.
+📊 Ratios
+Analyse de performance avec graphiques animés (reanimated).
+🛠️ Outils
+Calculateur de marge et export PDF des fiches techniques (expo-print).
+🧪 HACCP
+Relevés de températures et archivage numérique des étiquettes sanitaires.
+⚙️ Paramètres
+Configuration des clés API et gestion de ton profil.
 
-```bash
-cd ChefGestion
-npm install
-```
 
-### 2. Installer les polices Google Fonts
+🚀 Installation et Lancement Rapide (Workflow)
 
-```bash
+Installation des dépendances
+Terminal                   # Se placer dans le dossier /frontend  cd frontend
+
+                        npm install
+
+💻 Démarrage du Frontend (Mobile)
+Ton script est configuré pour ton IP fixe (192.168.1.122) afin de garantir la liaison Wi-Fi avec ton smartphone.
+Terminal                   # Se placer dans le dossier /frontend  cd frontend
+
+                        npm run start 
+
+Action : Lance Metro, vide le cache (-c) et expose l'app sur ton réseau local.
+
+Si cela ne marche pas, utilise cette commande spécifique pour forcer Metro à diffuser sur ton IP locale et éviter l'erreur de téléchargement :
+Terminal
+$env:REACT_NATIVE_PACKAGER_HOSTNAME="192.168.1.122"; npx expo start --lan -c
+    • $env:... : Indique à ton téléphone où se trouve ton PC.
+    • --lan : Force la connexion locale.
+    • -c : Vide le cache pour partir sur une base propre.
+
+⚙️ Démarrage du Backend (Serveur)
+Terminal                   # Se placer dans le dossier /backend  cd backend
+
+                        npm run dev 
+
+Action : Lance le serveur Express sur le port local (généralement 5001) pour tester tes API avant de "pusher" sur Render.
+
+
+📁 Architecture Technique Détaillée
+Voici la cartographie complète de ton application pour une maintenance sans erreur.
+
+📱 FRONTEND (React Native / Expo 54)
+
+frontend/
+├── app/                     # 🧭 Navigation (Expo Router)
+│   ├── _layout.tsx          # Root : Fonts (Cinzel), AuthProvider, Splash
+│   ├── (auth)/              # Connexion & Inscription
+│   └── (tabs)/              # Navigation principale (Bottom Tabs)
+│       ├── index.tsx        # Dashboard (Accueil)
+│       ├── scanner.tsx      # Interface Caméra + Analyse IA
+│       ├── ratios.tsx       # Graphiques et statistiques
+│       ├── tools.tsx        # Calculateurs de cuisine
+│       ├── haccp.tsx        # Tableaux de relevés sanitaires
+│       ├── more.tsx         # Paramètres, Fournisseurs, Profil
+│       └── _layout.tsx      # Design Noir & Or (Icons & Labels centrés)
+├── components/              # 🧱 Composants UI (UI.tsx, Modales)
+├── lib/                     # 🧠 Services & Logique
+│   ├── api.ts               # Appels vers Render (Endpoints API)
+│   ├── auth.ts              # Gestion des Tokens JWT & Sessions
+│   ├── context.tsx          # State Management (Données partagées)
+│   ├── gemini.ts            # Intégration Google AI Studio
+│   └── storage.ts           # Persistance locale (AsyncStorage)
+├── assets/                  # 🎨 Design (Fonts, Splash, Icones)
+├── constants/               # 🎨 Theme.ts (Codes couleurs Noir/Or)
+├── app.json                 # Config Expo (SDK 54, Plugins)
+└── package.json             # Scripts de build et dépendances
+
+⚙️ BACKEND (Node.js / Express)
+
+backend/
+├── src/                     # 🔌 Code Source Serveur
+│   ├── routes/              # Les tuyaux (Endpoints)
+│   │   ├── auth.ts          # Inscription / Connexion
+│   │   ├── haccp.ts         # Enregistrement des températures
+│   │   ├── invoices.ts      # Gestion des factures scannées
+│   │   ├── scan.ts          # Traitement OCR/IA
+│   │   └── suppliers.ts     # Base de données fournisseurs
+│   ├── services/            # Logic métier complexe
+│   │   ├── gemini.ts        # Analyse des images par l'IA
+│   │   └── supabase.ts      # Liaison Base de données
+│   ├── middleware/          # Sécurité (Vérification Auth)
+│   └── server.js            # Point d'entrée principal
+├── supabase-schema.sql      # Plan des tables SQL (PostgreSQL)
+└── .env                     # Clés Secrètes (À NE PAS PARTAGER)
+
+
+🌐 Écosystème Cloud & API
+Service
+Rôle
+Statut
+Render
+Hébergement du Backend
+https://chefgestion-pro.onrender.com
+Supabase
+Base de données PostgreSQL
+Cloud (Stockage sécurisé)
+Google Cloud Vision
+Extraction de texte (OCR)
+API Key active
+Google AI Studio
+Analyse intelligente (IA)
+Modèle : Gemini 1.5 Pro
+Stockage Local 
+AsyncStorage 
+(2.2.0) pour garder ta session active même sans Wi-Fi. 
+
+🛰️ Procédure de Sauvegarde & Déploiement (Git)
+Pour enregistrer ton travail sur GitHub et mettre à jour automatiquement ton serveur sur Render, utilise la méthode "Add-Commit-Push" depuis ton terminal :
+1. Préparer les fichiers
+On indique à Git quels fichiers "monter" pour la sauvegarde.
+Terminal
+                       git add .
+2. Valider les modifications
+On met une étiquette précise sur le travail effectué.
+Terminal
+                       git commit -m "Ajoute: Description de ta modification"
+
+💡 Note du Chef :  * Vérifie toujours ton statut avec git status avant de pousser.
+    • En rouge : Les fichiers modifiés mais pas encore "préparés" (not stage).
+    • En vert : Les fichiers prêts à être inclus dans ton prochain commit.
+    • Les fichiers non suivis : Ceux que Git ne connaît pas encore.
+      C'est l'outil parfait pour vérifier que tu n'es pas en train d'envoyer par erreur ton fichier .env qui contient tes clé API ou des fichiers temporaires.
+3. Envoyer sur le Cloud
+On pousse les données vers le dépôt (GitHub), ce qui déclenche le build sur Render.
+Terminal
+                        git push origin main
+📦 Build & Déploiement (APK / iOS)
+
+Tes scripts eas build sont déjà configurés pour générer tes versions de test :
+Si tu fais une petite modif de texte ou de couleur dans le frontend et que tu ne veux pas recréer un APK complet (ce qui est long), tu peux faire : 
+Terminal
+                   eas update --branch preview 
+Cela envoie la mise à jour "par les airs" à ton APK déjà installé (au prochain redémarrage de l'app). 
+
+🤖 Android (APK Preview)
+Pour installer l'app en dur sur ton téléphone :
+Terminal
+                    npm run build:android 
+Le lien de téléchargement est généré sur Expo.dev, ou un QR Code s’affiche dans le terminal afin d’installer l’APK.
+
+🍎 iOS (Via Expo Go pour tiers)
+Pour faire tester l'app à un proche sans compte Apple Developer payant :
+    1. Ajoute l'utilisateur sur Expo.dev.
+    2. Publie la version : eas update.
+    3. L'utilisateur ouvre le lien dans Safari sur son iPhone.
+    4. Cliquer sur "Open with Expo Go".
+
+🧰 Outils & Services Utilisés
+Outil
+Rôle
+Expo 54
+Framework principal de l'application.
+Gemini / Claude
+Tes commis de cuisine pour le code et le debug.
+Google Cloud Vision
+OCR pour "lire" tes étiquettes de produits.
+Google AI Studio
+Cerveau IA pour l'analyse des données scannées.
+Supabase / Render
+Ton infrastructure serveur et ta chambre froide (Data).
+GitHub
+Ton carnet de recettes (Sauvegarde du code).
+
+
+⚠️ Limitations des API (Versions Gratuites)
+    • Google Gemini API : Limité à 20 requêtes / jour.
+    • Google Cloud Vision API : Limité à 33 requêtes / jour.
+    • Render : Mise en veille auto après 15 min. (Prévoir 30s de chargement au réveil).
+    • Supabase : 500 MB de stockage / 5 GB de bande passante mensuelle.
+      
+
+🔧 Dépannage (Troubleshooting)
+          
+          Erreur "Metro non trouvé" ou IP incorrecte Si tu changes de réseau (ex: de chez toi à la Cabana), vérifie que ton adresse IP est toujours 192.168.1.122. Sinon, mets-la à jour dans ton package.json sous le script "start".
+    • Nettoyage complet (Reset)
+      
+       npm run start # Le -c inclus videra déjà le cache Metro
+      
+    • Erreur Fonts (Cinzel / EB Garamond) Si les polices luxueuses ne s'affichent pas :
 npx expo install @expo-google-fonts/cinzel @expo-google-fonts/eb-garamond @expo-google-fonts/dm-sans
-```
-
-### 3. Lancer en mode développement (Expo Go)
-
-```bash
-npx expo start
-```
-
-Scannez le QR code avec **Expo Go** (iOS) ou directement avec l'appli Appareil photo (Android).
-
----
-
-## 📦 Build APK Android (installation directe)
-
-### Option A — Build local (sans compte Expo)
-
-```bash
-# Installer EAS CLI
-npm install -g eas-cli
-
-# Build APK local (nécessite Android Studio + JDK 17)
-npx expo run:android --variant release
-```
-
-### Option B — Build cloud EAS (recommandé, plus simple)
-
-```bash
-# 1. Créer un compte gratuit sur expo.dev
-eas login
-
-# 2. Configurer le projet
-eas build:configure
-
-# 3. Lancer le build APK
-eas build --platform android --profile preview
-```
-
-Le build prend ~10 minutes. Vous recevez un lien de téléchargement direct de l'APK.
-
----
-
-## 🍎 Build IPA iOS (installation directe)
-
-```bash
-# Nécessite un compte Apple Developer (99€/an)
-eas build --platform ios --profile preview
-```
-
-Pour installer sans l'App Store : utilisez **TestFlight** ou **AltStore**.
-
----
-
-## ⚙️ Configuration de votre clé API Gemini
-
-1. Obtenez votre clé sur [aistudio.google.com](https://aistudio.google.com)
-2. Lancez l'app → **Plus** → **Paramètres** → collez votre clé `AIzaSy...`
-3. Tous les scanners (factures, températures, carte) s'activent immédiatement
-
----
-
-## 📱 Fonctionnalités
-
-| Module | Description |
-|--------|-------------|
-| 🏠 Dashboard | KPIs en temps réel, alertes prix |
-| 📷 Scanner OCR | Factures, cartes restaurant, températures LED |
-| 📊 Ratios | Performance vs moyennes nationales FR |
-| 🔧 Outils | Calculateur marge, simulateur coût, fiche technique |
-| 🌡️ HACCP | Étiquettes sanitaires, relevés températures |
-| 🏭 Fournisseurs | Base produits, comparateur meilleur prix |
-| 🍽️ Recettes IA | Suggestions basées sur votre stock |
-
----
-
-## 🗂️ Structure du projet
-
-```
-ChefGestion/
-├── app/
-│   ├── _layout.tsx          # Root layout + fonts + AppProvider
-│   ├── index.tsx            # Redirect auth/tabs
-│   ├── (auth)/
-│   │   └── login.tsx        # Login & Signup
-│   └── (tabs)/
-│       ├── _layout.tsx      # Bottom tab navigator
-│       ├── index.tsx        # Dashboard
-│       ├── scanner.tsx      # Scanner OCR
-│       ├── ratios.tsx       # Indicateurs
-│       ├── tools.tsx        # Boîte à outils
-│       └── more.tsx         # Fournisseurs, HACCP, Paramètres
-├── components/
-│   └── UI.tsx               # Composants partagés
-├── lib/
-│   ├── context.tsx          # Global state (React Context)
-│   ├── gemini.ts            # API Gemini + queue + retry
-│   └── storage.ts           # AsyncStorage persistence
-├── constants/
-│   └── Theme.ts             # Couleurs, typography, spacing
-├── app.json                 # Config Expo
-├── eas.json                 # Config builds EAS
-└── package.json
-```
-
----
-
-## 🔧 Dépannage
-
-**Erreur "fonts not loaded"**
-```bash
-npx expo install @expo-google-fonts/cinzel @expo-google-fonts/eb-garamond @expo-google-fonts/dm-sans
-```
-
-**Erreur "expo-router not found"**
-```bash
-npm install expo-router
-npx expo install react-native-safe-area-context react-native-screens
-```
-
-**Le scanner ne s'ouvre pas**
-→ Vérifiez les permissions caméra dans les paramètres de votre téléphone.
-
-**L'IA retourne des données simulées**
-→ Votre clé API Gemini n'est pas configurée ou invalide. Allez dans Plus → Paramètres.
+    • Sync Backend : Si les températures ne s'enregistrent pas, vérifie que le serveur Render n'est pas en cours de maintenance, ou que les quotas n’ont pas été atteints.

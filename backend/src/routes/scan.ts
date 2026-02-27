@@ -232,6 +232,50 @@ router.post('/temperature', requireAuth, upload.single('image'), async (req: Aut
       .update({ vision_scans_today: currentScans + 1, last_vision_reset: today })
       .eq('id', userId);
 
+      // --- LOGIQUE D'ENREGISTREMENT AUTOMATIQUE (LOGIQUE SERVICE MIDI/SOIR) ---
+const now = new Date();
+const currentHour = now.getHours(); // 0 à 23
+
+let serviceDate = new Date(now);
+let periode: 'MIDI' | 'SOIR';
+
+// 1. Détermination de la Période et de la Date de Service
+if (currentHour >= 7 && currentHour < 16) {
+  // Service du MIDI
+  periode = 'MIDI';
+} else {
+  // Service du SOIR
+  periode = 'SOIR';
+  
+  // LOGIQUE CRUCIALE : Si on est entre 00:00 et 06:59, on rattache au service SOIR de la veille
+  if (currentHour >= 0 && currentHour < 7) {
+    serviceDate.setDate(serviceDate.getDate() - 1);
+  }
+}
+
+// Formatage de la date en YYYY-MM-DD pour la base de données
+const dateString = serviceDate.toISOString().split('T')[0];
+
+console.log(`[Log] Enregistrement : ${dateString} - ${periode} (Heure réelle: ${currentHour}h)`);
+
+// 2. Insertion / Mise à jour dans Supabase
+const { error: logError } = await supabase
+  .from('temperature_logs')
+  .upsert({
+    user_id: userId,
+    date: dateString,
+    periode: periode,
+    valeur: temperature,
+    type_afficheur: method,
+    confiance: confidence
+  }, { 
+    onConflict: 'user_id,date,periode' 
+  });
+
+if (logError) {
+  console.error('[DB Log Error]', logError.message);
+}
+
     res.json({
       ok: true,
       data: {
@@ -246,6 +290,30 @@ router.post('/temperature', requireAuth, upload.single('image'), async (req: Aut
   } catch (err) {
     console.error('[/scan/temperature]', err);
     res.status(500).json({ ok: false, error: 'Erreur serveur' });
+  }
+});
+
+// ─── POST /api/scan/haccp-update ───────────────────────────
+router.post('/haccp-update', requireAuth, async (req: AuthRequest, res: Response) => {
+  const { date, periode, valeur } = req.body;
+  const userId = req.userId!;
+
+  try {
+    const { error } = await supabase
+      .from('temperature_logs')
+      .upsert({
+        user_id: userId,
+        date,
+        periode,
+        valeur,
+        methode: 'Correction manuelle'
+      }, { onConflict: 'user_id,date,periode' });
+
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, error: 'Erreur mise à jour' });
   }
 });
 
@@ -281,6 +349,35 @@ router.post('/recipes', requireAuth, async (req: AuthRequest, res: Response) => 
   } catch (err) {
     console.error('[/scan/recipes]', err);
     res.status(500).json({ ok: false, error: 'Erreur serveur' });
+  }
+});
+
+// ─── GET /api/scan/haccp-logs ───────────────────────────────
+router.get('/haccp-logs', requireAuth, async (req: AuthRequest, res: Response) => {
+  const { year, month } = req.query; // On attend ex: ?year=2026&month=02
+
+  if (!year || !month) {
+    return res.status(400).json({ ok: false, error: 'Année et mois requis' });
+  }
+
+  try {
+    const startDate = `${year}-${month}-01`;
+    const lastDay = new Date(Number(year), Number(month), 0).getDate();
+    const endDate = `${year}-${month}-${lastDay}`;
+
+    const { data, error } = await supabase
+      .from('temperature_logs')
+      .select('*')
+      .eq('user_id', req.userId!)
+      .gte('date', startDate)
+      .lte('date', endDate)
+      .order('date', { ascending: true });
+
+    if (error) throw error;
+    res.json({ ok: true, data });
+  } catch (err) {
+    console.error('[/haccp-logs]', err);
+    res.status(500).json({ ok: false, error: 'Erreur récupération logs' });
   }
 });
 
