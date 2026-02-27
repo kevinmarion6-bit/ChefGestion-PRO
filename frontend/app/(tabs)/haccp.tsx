@@ -53,14 +53,16 @@ export default function HaccpScreen() {
 
   // Fonction pour envoyer la température au Backend
   const handleSaveTemp = async () => {
-  if (!tempValue || isNaN(Number(tempValue))) {
+  // 1. On remplace la virgule par un point immédiatement
+  const cleanValue = tempValue.replace(',', '.');
+
+  if (!cleanValue || isNaN(Number(cleanValue))) {
     Alert.alert("Erreur", "Veuillez entrer un chiffre valide.");
     return;
   }
 
   try {
     const token = await getToken();
-    // ⬇️ ON CHANGE L'URL ICI POUR CORRESPONDRE AU BACKEND
     const response = await fetch(`${API_URL}/api/scan/haccp-update`, {
       method: 'POST',
       headers: { 
@@ -70,16 +72,18 @@ export default function HaccpScreen() {
       body: JSON.stringify({
         date: selectedDate,
         periode: selectedPeriode,
-        valeur: parseFloat(tempValue) // On s'assure d'envoyer un nombre
+        valeur: parseFloat(cleanValue) // Envoi d'un nombre propre
       })
     });
 
     const res = await response.json();
     if (res.ok) {
       setModalVisible(false);
+      setTempValue(''); // On vide pour la prochaine fois
       fetchLogs(); 
     } else {
-      Alert.alert("Erreur", "Impossible d'enregistrer.");
+      // Pour debug : on affiche l'erreur réelle du serveur si elle existe
+      Alert.alert("Erreur", res.error || "Impossible d'enregistrer.");
     }
   } catch (err) {
     Alert.alert("Erreur", "Connexion au serveur impossible.");
@@ -141,18 +145,18 @@ export default function HaccpScreen() {
       <Modal visible={modalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Saisie Température</Text>
+            <Text style={styles.modalTitle}>SSaisie Température</Text>
             <Text style={styles.modalSubtitle}>{selectedPeriode} - {selectedDate}</Text>
             
-            <TextInput
-              style={styles.input}
-              placeholder="Ex: 3.4"
-              placeholderTextColor="#666"
-              keyboardType="decimal-pad"
-              value={tempValue}
-              onChangeText={setTempValue}
-              autoFocus
-            />
+           <TextInput
+  style={styles.input}
+  placeholder="Ex: 3.4"
+  placeholderTextColor="#666"
+  keyboardType="decimal-pad" // Clavier numérique avec point/virgule
+  value={tempValue}
+  onChangeText={(text) => setTempValue(text.replace(',', '.'))} // Force le point en temps réel
+  autoFocus
+/>
 
             <View style={styles.modalButtons}>
               <TouchableOpacity style={styles.btnCancel} onPress={() => setModalVisible(false)}>
