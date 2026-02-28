@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, TextInput, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, TextInput, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { Auth } from '@/lib/api';
-import { MaterialCommunityIcons } from '@expo/vector-icons'; // Ajout de l'icône
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const C = {
   black: '#000', blackM: '#111', charcoal: '#1A1A1A',
@@ -15,15 +15,22 @@ export default function ResetPasswordScreen() {
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isSecure, setIsSecure] = useState(true); // État pour la visibilité
+  const [isSecure, setIsSecure] = useState(true);
 
   const handleReset = async () => {
-    if (!email || !code || !password) { Alert.alert('Champs requis', 'Remplis tous les champs.'); return; }
-    if (password.length < 8) { Alert.alert('Sécurité', 'Le mot de passe doit faire 8 caractères min.'); return; }
+    if (!email || !code || !password) { 
+      Alert.alert('Champs requis', 'Remplis tous les champs.'); 
+      return; 
+    }
+    if (password.length < 8) { 
+      Alert.alert('Sécurité', 'Le mot de passe doit faire 8 caractères min.'); 
+      return; 
+    }
 
     setLoading(true);
     try {
-      await Auth.resetPassword(code, password);
+      // On envoie les 3 infos : email, code (token) et password
+      await Auth.resetPassword(email, code, password);
       
       Alert.alert(
         'Succès ! 👨‍🍳', 
@@ -31,7 +38,7 @@ export default function ResetPasswordScreen() {
         [{ text: 'Se connecter', onPress: () => router.replace('/login') }]
       );
     } catch (err: any) {
-      Alert.alert('Erreur', 'Code invalide ou expiré. Réessaie.');
+      Alert.alert('Erreur', err.message || 'Code invalide ou expiré. Réessaie.');
     } finally {
       setLoading(false);
     }
@@ -74,7 +81,6 @@ export default function ResetPasswordScreen() {
           <View style={{ height: 18 }} />
 
           <Text style={s.fieldLabel}>Nouveau mot de passe</Text>
-          {/* Conteneur pour aligner l'œil */}
           <View style={s.passWrap}>
             <TextInput
               style={[s.input, { flex: 1, paddingRight: 50 }]}
@@ -96,7 +102,11 @@ export default function ResetPasswordScreen() {
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity style={[s.btn, loading && s.btnOff]} onPress={handleReset} disabled={loading}>
+          <TouchableOpacity 
+            style={[s.btn, loading && s.btnOff]} 
+            onPress={handleReset} 
+            disabled={loading}
+          >
             <Text style={s.btnTxt}>{loading ? 'Mise à jour...' : 'Valider le changement'}</Text>
           </TouchableOpacity>
 
@@ -118,10 +128,8 @@ const s = StyleSheet.create({
   formPad: { padding: 22 },
   fieldLabel: { fontFamily: 'Cinzel_400Regular', fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', color: C.mutedL, marginBottom: 8 },
   input: { backgroundColor: C.blackM, borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)', borderRadius: 8, padding: 14, color: C.cream, fontSize: 17 },
-  // Nouveaux styles pour l'œil
   passWrap: { flexDirection: 'row', alignItems: 'center' },
   eye: { position: 'absolute', right: 14, padding: 4 },
-  
   codeInput: { 
     textAlign: 'center', 
     letterSpacing: 8, 
