@@ -139,6 +139,7 @@ export interface Recipe {
 
 // ─── AUTH ────────────────────────────────────────────────
 
+
 export const Auth = {
   async signup(name: string, email: string, password: string, apiKey = '') {
     return apiFetch<{ token: string; user: UserPublic }>('/auth/signup', {
@@ -172,10 +173,11 @@ export const Auth = {
     });
   },
 
-  async resetPassword(token: string, password: string) {
+  // CORRIGÉ : Ajout du paramètre email
+  async resetPassword(email: string, token: string, password: string) {
     return apiFetch<{ ok: boolean }>('/auth/reset-password', {
       method: 'POST',
-      body: JSON.stringify({ token, password }),
+      body: JSON.stringify({ email, token, password }),
     });
   }
 };
