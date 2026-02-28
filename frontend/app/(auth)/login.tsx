@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, ScrollView, TouchableOpacity,
   StyleSheet, Alert, Platform, Image, Keyboard,
-  KeyboardEvent, Animated,
+  KeyboardEvent, Animated, TouchableWithoutFeedback,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useApp } from '@/lib/context';
@@ -124,6 +124,7 @@ export default function LoginScreen() {
   }
 
   async function handleLogin() {
+    Keyboard.dismiss(); // Fermeture clavier
     if (!lEmail || !lPass) { Alert.alert('Champs requis', 'Remplissez e-mail et mot de passe.'); return; }
     setLoading(true);
     try {
@@ -135,6 +136,7 @@ export default function LoginScreen() {
   }
 
   async function handleSignup() {
+    Keyboard.dismiss(); // Fermeture clavier
     if (!sName || !sEmail || !sPass) { Alert.alert('Champs requis', 'Remplissez tous les champs.'); return; }
     if (sPass.length < 8) { Alert.alert('Mot de passe', 'Minimum 8 caractères.'); return; }
     setLoading(true);
@@ -147,6 +149,7 @@ export default function LoginScreen() {
   }
 
   function switchTab(t: 'login' | 'signup') {
+    Keyboard.dismiss(); // Fermeture clavier lors du changement d'onglet
     setTab(t);
     scrollRef.current?.scrollTo({ y: 0, animated: true });
   }
@@ -162,92 +165,96 @@ export default function LoginScreen() {
         showsVerticalScrollIndicator={false}
         bounces={false}
       >
-        <View style={s.logoWrap}>
-          <Image
-            source={require('../../assets/logo.png')}
-            style={s.logoImg}
-            resizeMode="contain"
-          />
-          <Text style={s.tagline}>⁘ SUIVI & GESTION CUISINE</Text>
-        </View>
+        {/* Enveloppe tactile pour fermer le clavier au clic n'importe où */}
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={{ flex: 1 }}>
+            <View style={s.logoWrap}>
+              <Image
+                source={require('../../assets/logo.png')}
+                style={s.logoImg}
+                resizeMode="contain"
+              />
+              <Text style={s.tagline}>⁘ SUIVI & GESTION CUISINE ⁘</Text>
+            </View>
 
-        <View style={s.card}>
-          <View style={s.cardTopLine} />
+            <View style={s.card}>
+              <View style={s.cardTopLine} />
 
-          <View style={s.tabs}>
-            {(['login', 'signup'] as const).map(t => (
-              <TouchableOpacity
-                key={t}
-                style={[s.tab, tab === t && s.tabActive]}
-                onPress={() => switchTab(t)}
-                activeOpacity={0.7}
-              >
-                <Text style={[s.tabTxt, tab === t && s.tabTxtActive]}>
-                  {t === 'login' ? 'Connexion' : 'Inscription'}
-                </Text>
-              </TouchableOpacity>
-            ))}
+              <View style={s.tabs}>
+                {(['login', 'signup'] as const).map(t => (
+                  <TouchableOpacity
+                    key={t}
+                    style={[s.tab, tab === t && s.tabActive]}
+                    onPress={() => switchTab(t)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[s.tabTxt, tab === t && s.tabTxtActive]}>
+                      {t === 'login' ? 'Connexion' : 'Inscription'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <View style={s.formPad}>
+                {tab === 'login' ? (
+                  <>
+                    <Field
+                      label="Adresse e-mail" value={lEmail} onChange={setLEmail}
+                      placeholder="exemple-chef@gmail.com" keyboard="email-address"
+                      autoComplete="email" textContent="emailAddress"
+                    />
+                    <Field
+                      label="Mot de passe" value={lPass} onChange={setLPass}
+                      placeholder="••••••••" secure
+                      autoComplete="current-password" textContent="password"
+                    />
+                    
+                    <TouchableOpacity 
+                      onPress={() => { Keyboard.dismiss(); router.push('/forgot-password'); }} 
+                      style={s.forgotLink}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={s.forgotLinkTxt}>Mot de passe oublié ?</Text>
+                    </TouchableOpacity>
+
+                    <View style={{ height: 12 }} />
+                    
+                    <TouchableOpacity style={[s.btn, loading && s.btnOff]} onPress={handleLogin} disabled={loading} activeOpacity={0.8}>
+                      <Text style={s.btnTxt}>{loading ? 'Connexion...' : 'Se Connecter'}</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <>
+                    <Field
+                      label="Prénom & Nom" value={sName} onChange={setSName}
+                      placeholder="Paul Bocuse" capitalize="words"
+                      autoComplete="name" textContent="name"
+                    />
+                    <Field
+                      label="Adresse e-mail" value={sEmail} onChange={setSEmail}
+                      placeholder="exemple-chef@gmail.com" keyboard="email-address"
+                      autoComplete="email" textContent="emailAddress"
+                    />
+                    <Field
+                      label="Mot de passe (8 car. min.)" value={sPass} onChange={setSPass}
+                      placeholder="••••••••" secure
+                      autoComplete="new-password" textContent="newPassword"
+                    />
+                    <View style={s.geminiBox}>
+                      <Text style={s.geminiTitle}>🔑 Clé API Gemini</Text>
+                      <Field label="" value={sApi} onChange={setSApi} placeholder="AIzaSy..." mono autoComplete="off" />
+                      <Text style={s.geminiNote}>Facultatif — active l'OCR intelligent</Text>
+                    </View>
+                    <View style={{ height: 8 }} />
+                    <TouchableOpacity style={[s.btn, loading && s.btnOff]} onPress={handleSignup} disabled={loading} activeOpacity={0.8}>
+                      <Text style={s.btnTxt}>{loading ? 'Création...' : 'Créer mon compte'}</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+            </View>
           </View>
-
-          <View style={s.formPad}>
-            {tab === 'login' ? (
-              <>
-                <Field
-                  label="Adresse e-mail" value={lEmail} onChange={setLEmail}
-                  placeholder="chef@restaurant.fr" keyboard="email-address"
-                  autoComplete="email" textContent="emailAddress"
-                />
-                <Field
-                  label="Mot de passe" value={lPass} onChange={setLPass}
-                  placeholder="••••••••" secure
-                  autoComplete="current-password" textContent="password"
-                />
-                
-                {/* --- AJOUT DU BOUTON MOT DE PASSE OUBLIÉ --- */}
-                <TouchableOpacity 
-                  onPress={() => router.push('/forgot-password')} 
-                  style={s.forgotLink}
-                  activeOpacity={0.7}
-                >
-                  <Text style={s.forgotLinkTxt}>Mot de passe oublié ?</Text>
-                </TouchableOpacity>
-
-                <View style={{ height: 12 }} />
-                
-                <TouchableOpacity style={[s.btn, loading && s.btnOff]} onPress={handleLogin} disabled={loading} activeOpacity={0.8}>
-                  <Text style={s.btnTxt}>{loading ? 'Connexion...' : 'Se Connecter'}</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <Field
-                  label="Prénom & Nom" value={sName} onChange={setSName}
-                  placeholder="Pierre Martin" capitalize="words"
-                  autoComplete="name" textContent="name"
-                />
-                <Field
-                  label="Adresse e-mail" value={sEmail} onChange={setSEmail}
-                  placeholder="chef@restaurant.fr" keyboard="email-address"
-                  autoComplete="email" textContent="emailAddress"
-                />
-                <Field
-                  label="Mot de passe (8 car. min.)" value={sPass} onChange={setSPass}
-                  placeholder="••••••••" secure
-                  autoComplete="new-password" textContent="newPassword"
-                />
-                <View style={s.geminiBox}>
-                  <Text style={s.geminiTitle}>🔑 Clé API Gemini</Text>
-                  <Field label="" value={sApi} onChange={setSApi} placeholder="AIzaSy..." mono autoComplete="off" />
-                  <Text style={s.geminiNote}>Facultatif — active l'OCR intelligent</Text>
-                </View>
-                <View style={{ height: 8 }} />
-                <TouchableOpacity style={[s.btn, loading && s.btnOff]} onPress={handleSignup} disabled={loading} activeOpacity={0.8}>
-                  <Text style={s.btnTxt}>{loading ? 'Création...' : 'Créer mon compte'}</Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </View>
-        </View>
+        </TouchableWithoutFeedback>
 
         <Animated.View style={{ height: keyboardPad }} />
       </Animated.ScrollView>
@@ -261,8 +268,8 @@ const s = StyleSheet.create({
   configTitle: { fontFamily: 'Cinzel_700SemiBold', fontSize: 16, color: C.gold, textAlign: 'center', marginBottom: 12 },
   configText:  { fontSize: 14, color: C.muted, textAlign: 'center', lineHeight: 22 },
   logoWrap: { alignItems: 'center', marginBottom: 28 },
-  logoImg:  { width: 140, height: 140, marginBottom: 12 },
-  tagline:  { fontFamily: 'Cinzel_400Regular', fontSize: 18, letterSpacing: 4, color: C.bronze, textTransform: 'uppercase', marginTop: 2 },
+  logoImg:  { width: 200, height: 200, marginBottom: 12 },
+  tagline:  { fontFamily: 'Cinzel_400Regular', fontSize: 16, letterSpacing: 4, color: C.bronze, textTransform: 'uppercase', marginTop: 2 },
   card:        { backgroundColor: C.charcoal, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(212,175,55,0.22)', overflow: 'hidden' },
   cardTopLine: { height: 1, backgroundColor: C.gold, opacity: 0.5 },
   tabs:          { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: 'rgba(212,175,55,0.12)' },
@@ -275,22 +282,20 @@ const s = StyleSheet.create({
   fieldLabel: { fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: C.mutedL, marginBottom: 8, fontWeight: '600' },
   input:      { backgroundColor: C.blackM, borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)', borderRadius: 8, padding: 14, color: C.cream, fontSize: 17, fontWeight: '500' },
 
-  // --- NOUVEAUX STYLES POUR LE LIEN ---
   forgotLink: {
     alignSelf: 'flex-end',
     marginTop: -4, 
     paddingVertical: 8,
   },
   forgotLinkTxt: {
-    fontFamily: 'Cinzel_400Regular', // Passage en Gras
-    fontSize: 14, // Un peu plus grand (était à 9)
+    fontFamily: 'Cinzel_400Regular',
+    fontSize: 14,
     letterSpacing: 1.5,
-    color: C.gold, // Passage en Or pour qu'on ne le rate pas
+    color: C.gold,
     textDecorationLine: 'underline',
   },
-  // -----------------------------------
 
-  geminiBox:   { marginTop: 8, paddingTop: 16, borderTopWidth: 1, borderTopColor: 'rgba(212,175,55,0.1)' },
+  geminiBox:    { marginTop: 8, paddingTop: 16, borderTopWidth: 1, borderTopColor: 'rgba(212,175,55,0.1)' },
   geminiTitle: { fontFamily: 'Cinzel_400Regular', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: C.bronze, marginBottom: 10 },
   geminiNote:  { fontSize: 12, color: C.muted, fontStyle: 'italic', marginTop: 4 },
   btn:    { backgroundColor: C.gold, borderRadius: 8, padding: 16, alignItems: 'center', marginTop: 4 },

@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, TextInput, ScrollView } from 'react-native';
+import { 
+  View, Text, StyleSheet, TouchableOpacity, Alert, 
+  TextInput, ScrollView, Keyboard, TouchableWithoutFeedback 
+} from 'react-native';
 import { router } from 'expo-router';
 import { Auth } from '@/lib/api';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -18,6 +21,8 @@ export default function ResetPasswordScreen() {
   const [isSecure, setIsSecure] = useState(true);
 
   const handleReset = async () => {
+    Keyboard.dismiss();
+
     if (!email || !code || !password) { 
       Alert.alert('Champs requis', 'Remplis tous les champs.'); 
       return; 
@@ -29,7 +34,7 @@ export default function ResetPasswordScreen() {
 
     setLoading(true);
     try {
-      // On envoie les 3 infos : email, code (token) et password
+      // Correction ici : on utilise 'code' qui est ton state local
       await Auth.resetPassword(email, code, password);
       
       Alert.alert(
@@ -45,82 +50,93 @@ export default function ResetPasswordScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={s.root} bounces={false}>
-      <View style={s.logoWrap}>
-        <Text style={s.tagline}>🔒 NOUVEL ACCÈS</Text>
-      </View>
-
-      <View style={s.card}>
-        <View style={s.cardTopLine} />
-        <View style={s.formPad}>
+    <ScrollView 
+      contentContainerStyle={s.root} 
+      bounces={false} 
+      keyboardShouldPersistTaps="handled"
+    >
+      {/* TouchableWithoutFeedback permet de fermer le clavier au clic n'importe où */}
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View style={{ flex: 1, justifyContent: 'center' }}>
           
-          <Text style={s.fieldLabel}>Ton adresse e-mail</Text>
-          <TextInput
-            style={s.input}
-            value={email}
-            onChangeText={setEmail}
-            placeholder="exemple-chef@gmail.com"
-            placeholderTextColor={C.muted}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-
-          <View style={{ height: 18 }} />
-
-          <Text style={s.fieldLabel}>Code de validation (6 chiffres)</Text>
-          <TextInput
-            style={[s.input, s.codeInput]}
-            value={code}
-            onChangeText={setCode}
-            placeholder="123456"
-            placeholderTextColor={C.muted}
-            keyboardType="number-pad"
-            maxLength={6}
-          />
-
-          <View style={{ height: 18 }} />
-
-          <Text style={s.fieldLabel}>Nouveau mot de passe</Text>
-          <View style={s.passWrap}>
-            <TextInput
-              style={[s.input, { flex: 1, paddingRight: 50 }]}
-              value={password}
-              onChangeText={setPassword}
-              placeholder="••••••••"
-              placeholderTextColor={C.muted}
-              secureTextEntry={isSecure}
-            />
-            <TouchableOpacity 
-              style={s.eye} 
-              onPress={() => setIsSecure(!isSecure)}
-            >
-              <MaterialCommunityIcons 
-                name={isSecure ? "eye-off" : "eye"} 
-                size={20} 
-                color={C.gold} 
-              />
-            </TouchableOpacity>
+          <View style={s.logoWrap}>
+            <Text style={s.tagline}>🔒 NOUVEL ACCÈS</Text>
           </View>
 
-          <TouchableOpacity 
-            style={[s.btn, loading && s.btnOff]} 
-            onPress={handleReset} 
-            disabled={loading}
-          >
-            <Text style={s.btnTxt}>{loading ? 'Mise à jour...' : 'Valider le changement'}</Text>
-          </TouchableOpacity>
+          <View style={s.card}>
+            <View style={s.cardTopLine} />
+            <View style={s.formPad}>
+              
+              <Text style={s.fieldLabel}>Ton adresse e-mail</Text>
+              <TextInput
+                style={s.input}
+                value={email}
+                onChangeText={setEmail}
+                placeholder="exemple-chef@gmail.com"
+                placeholderTextColor={C.muted}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
 
-          <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 20, alignItems: 'center' }}>
-            <Text style={s.backTxt}>Retour</Text>
-          </TouchableOpacity>
+              <View style={{ height: 18 }} />
+
+              <Text style={s.fieldLabel}>Code de validation (6 chiffres)</Text>
+              <TextInput
+                style={[s.input, s.codeInput]}
+                value={code}
+                onChangeText={setCode}
+                placeholder="123456"
+                placeholderTextColor={C.muted}
+                keyboardType="number-pad"
+                maxLength={6}
+              />
+
+              <View style={{ height: 18 }} />
+
+              <Text style={s.fieldLabel}>Nouveau mot de passe</Text>
+              <View style={s.passWrap}>
+                <TextInput
+                  style={[s.input, { flex: 1, paddingRight: 50 }]}
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="••••••••"
+                  placeholderTextColor={C.muted}
+                  secureTextEntry={isSecure}
+                />
+                <TouchableOpacity 
+                  style={s.eye} 
+                  onPress={() => setIsSecure(!isSecure)}
+                >
+                  <MaterialCommunityIcons 
+                    name={isSecure ? "eye-off" : "eye"} 
+                    size={20} 
+                    color={C.gold} 
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity 
+                style={[s.btn, loading && s.btnOff]} 
+                onPress={handleReset} 
+                disabled={loading}
+              >
+                <Text style={s.btnTxt}>{loading ? 'Mise à jour...' : 'Valider le changement'}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 20, alignItems: 'center' }}>
+                <Text style={s.backTxt}>Retour</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
         </View>
-      </View>
+      </TouchableWithoutFeedback>
     </ScrollView>
   );
 }
 
 const s = StyleSheet.create({
-  root: { flexGrow: 1, backgroundColor: C.black, justifyContent: 'center', padding: 24 },
+  root: { flexGrow: 1, backgroundColor: C.black, padding: 24 },
   logoWrap: { alignItems: 'center', marginBottom: 28 },
   tagline: { fontFamily: 'Cinzel_400Regular', fontSize: 22, letterSpacing: 4, color: C.gold, textTransform: 'uppercase' },
   card: { backgroundColor: C.charcoal, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(212,175,55,0.22)', overflow: 'hidden' },

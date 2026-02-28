@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Image } from 'react-native';
+import { 
+  View, Text, StyleSheet, TouchableOpacity, Alert, 
+  TextInput, Keyboard, TouchableWithoutFeedback 
+} from 'react-native';
 import { router } from 'expo-router';
 import { Auth } from '@/lib/api';
 
@@ -9,7 +12,7 @@ const C = {
   cream: '#F5F5DC', muted: '#6B6050', mutedL: '#8A7A60',
 };
 
-// On réutilise ton composant de champ pour la cohérence
+// Composant de champ interne
 function Field({ label, value, onChange, placeholder }: any) {
   return (
     <View style={s.fieldWrap}>
@@ -27,14 +30,19 @@ function Field({ label, value, onChange, placeholder }: any) {
   );
 }
 
-import { TextInput } from 'react-native';
-
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleForgot = async () => {
-    if (!email) { Alert.alert('Champ requis', 'Saisis ton adresse e-mail.'); return; }
+    // FERMETURE DU CLAVIER
+    Keyboard.dismiss();
+
+    if (!email) { 
+      Alert.alert('Champ requis', 'Saisis ton adresse e-mail.'); 
+      return; 
+    }
+    
     setLoading(true);
     try {
       await Auth.forgotPassword(email);
@@ -51,33 +59,43 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <View style={s.root}>
-      <View style={s.logoWrap}>
-        <Text style={s.tagline}>🔒 RÉCUPÉRATION</Text>
-      </View>
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <View style={s.root}>
+        <View style={s.logoWrap}>
+          <Text style={s.tagline}>🔒 RÉCUPÉRATION</Text>
+        </View>
 
-      <View style={s.card}>
-        <View style={s.cardTopLine} />
-        <View style={s.formPad}>
-          <Text style={s.instr}>Saisis l'e-mail associé à ton compte pour recevoir ton code d'accès.</Text>
-          
-          <Field 
-            label="Adresse e-mail" 
-            value={email} 
-            onChange={setEmail} 
-            placeholder="exemple-chef@gmail.com" 
-          />
+        <View style={s.card}>
+          <View style={s.cardTopLine} />
+          <View style={s.formPad}>
+            <Text style={s.instr}>Saisis l'e-mail associé à ton compte pour recevoir ton code d'accès.</Text>
+            
+            <Field 
+              label="Adresse e-mail" 
+              value={email} 
+              onChange={setEmail} 
+              placeholder="exemple-chef@gmail.com" 
+            />
 
-          <TouchableOpacity style={[s.btn, loading && s.btnOff]} onPress={handleForgot} disabled={loading}>
-            <Text style={s.btnTxt}>{loading ? 'Envoi...' : 'Envoyer le code'}</Text>
-          </TouchableOpacity>
+            <TouchableOpacity 
+              style={[s.btn, loading && s.btnOff]} 
+              onPress={handleForgot} 
+              disabled={loading}
+              activeOpacity={0.8}
+            >
+              <Text style={s.btnTxt}>{loading ? 'Envoi...' : 'Envoyer le code'}</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 20, alignItems: 'center' }}>
-            <Text style={s.backTxt}>Retour à la connexion</Text>
-          </TouchableOpacity>
+            <TouchableOpacity 
+              onPress={() => { Keyboard.dismiss(); router.back(); }} 
+              style={{ marginTop: 20, alignItems: 'center' }}
+            >
+              <Text style={s.backTxt}>Retour à la connexion</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
-    </View>
+    </TouchableWithoutFeedback>
   );
 }
 
