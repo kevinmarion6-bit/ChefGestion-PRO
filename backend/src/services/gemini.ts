@@ -109,30 +109,16 @@ Analyse cette image et extrais en JSON strict (sans markdown ni backticks):
 {"fournisseur":"","numero_facture":"","date":"DD/MM/YYYY","produits":[{"nom":"","unite":"kg|L|pièce|colis","prix_ht":0,"quantite":0,"total_ht":0}],"total_ht":0,"tva":0,"total_ttc":0}
 Retourne UNIQUEMENT le JSON valide.`,
 
- temperature: `Tu es un expert en lecture d'afficheurs LED industriels (HACCP).
-L'image est un recadrage serré sur l'écran d'un thermostat de cuisine.
+ temperature: `Tu es un expert en lecture d'afficheurs LED de cuisine. 
+L'image montre un montage avec différentes expositions d'un même écran.
 
-INSTRUCTIONS :
-1. PRIORITÉ AU SIGNE : Un tiret seul à gauche est TOUJOURS un signe moins (-).
-2. LOGIQUE DÉCIMALE : 
-   - Si tu vois un point ou une virgule, utilise-le.
-   - Si tu vois 3 chiffres sans point (ex: "185"), insère une décimale (ex: 18.5).
-   - Si le résultat est incohérent pour un frigo (> 50°C), réévalue si un segment n'est pas un reflet.
-3. ERREURS TYPES : Ne confonds pas le "8" avec un "0" mal formé. Vérifie les segments allumés.
-4. ÉTAT SPÉCIAL : Si l'afficheur indique "Lo" ou "Hi", considère cela comme une température hors plage (null).
+CONSIGNES CRUCIALES :
+1. LE SIGNE MOINS : Il est souvent très fin à gauche. Si tu vois un tiret ou si c'est un congélateur, le signe est négatif.
+2. LE POINT DÉCIMAL : Il est souvent représenté par un seul segment LED. Si tu lis 185, c'est probablement 18.5.
+3. LES SEGMENTS : Un "8" dont une barre est faible peut être lu "0". Un "1" peut être un "7". Compare les 3 versions de l'image pour confirmer.
+4. COHÉRENCE : Un frigo positif est entre 0°C et 8°C. Un congélateur est entre -15°C et -25°C.
 
-EXEMPLE D'ANALYSE :
-Input: Image avec chiffres rouges "02.5"
-Output: {"temperature": 2.5, "unite": "°C", "confiance": 98, "type_afficheur": "LED 7 segments", "analyse_visuelle": "Chiffres 0, 2 et 5 bien visibles avec point décimal."}
-
-FORMAT JSON STRICT :
-{
-  "temperature": number | null,
-  "unite": "°C",
-  "confiance": 0-100,
-  "type_afficheur": "LED 7 segments",
-  "analyse_visuelle": "ex: Vu -18.4 avec point net"
-}`,
+Réponds UNIQUEMENT en JSON : {"temperature": number, "confiance": 0-100, "erreur": string | null}`,
 
   carte: `Tu es expert en analyse de cartes de restaurants français.
 Extrais tous les plats et prix TTC.

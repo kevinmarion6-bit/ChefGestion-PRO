@@ -143,71 +143,74 @@ router.post('/temperature', requireAuth, upload.single('image'), async (req: Aut
       return res.status(429).json({ ok: false, error: 'Quota Google Vision atteint (33/33).' });
     }
 
-    // --- ÉTAPE 1 : CRÉATION DU MONTAGE (2-en-1 pour 1 seul crédit) ---
-    // On redimensionne l'originale pour limiter le poids de la requête
-    const baseImg = sharp(req.file.buffer).resize(800);
+    // --- ÉTAPE 1 : MONTAGE ULTRA-LISIBILITÉ (Multi-couleurs : Rouge, Bleu, Blanc) ---
+    const baseImg = sharp(req.file.buffer).resize(1000);
     const metadata = await baseImg.metadata();
-    const height = metadata.height || 600;
+    const h = metadata.height || 600;
 
-    // On prépare le calque HSL (Saturation pour LED Rouges/Bleues)
-    const hslLayer = await sharp(req.file.buffer)
-      .resize(800)
-      .modulate({ brightness: 1.2 })
-      .toColorspace('hsl')
-      .extractChannel(1) // Saturation
-      .threshold(140)
+    // Version A : Négatif + Seuil (Idéal pour Vision, transforme tout en noir sur blanc)
+    const thresholdLayer = await sharp(req.file.buffer)
+      .resize(1000)
+      .grayscale()
+      .negate() 
+      .threshold(160) // Ajuste entre 150 et 180 si besoin selon la luminosité de tes LED
       .toBuffer();
 
-    // On fusionne : Original en haut, HSL juste en dessous
+    // Version B : Contraste Linéaire (Garde les nuances pour le point décimal)
+    const contrastLayer = await sharp(req.file.buffer)
+      .resize(1000)
+      .grayscale()
+      .linear(2.0, -50) // On force le trait pour détacher le chiffre du fond noir
+      .toBuffer();
+
     const compositeBuffer = await baseImg
       .extend({
-        bottom: height,
-        background: { r: 0, g: 0, b: 0, alpha: 1 }
+        bottom: h * 2,
+        background: { r: 255, g: 255, b: 255, alpha: 1 }
       })
-      .composite([{
-        input: hslLayer,
-        top: height,
-        left: 0
-      }])
+      .composite([
+        { input: thresholdLayer, top: h, left: 0 },
+        { input: contrastLayer, top: h * 2, left: 0 }
+      ])
       .toBuffer();
-
-    // --- ÉTAPE 2 : UN SEUL APPEL VISION (1 Crédit Google) ---
+      
+    // --- ÉTAPE 2 : APPEL VISION ---
     const visionKey = getVisionApiKey();
     const b64 = compositeBuffer.toString('base64');
     const rawText = await callVision(visionKey, b64);
     
-    console.log('[Vision] Texte extrait (Montage) :', rawText);
+    console.log('[Vision] Texte extrait :', rawText);
 
     let temperature: number | null = null;
     let confidence = 95;
     let method = 'Google Vision (Montage Hybride)';
 
-    // Nettoyage et extraction
+    // --- ÉTAPE 3 : LOGIQUE DE PARSING UNIQUE ---
     const normalized = rawText
-      .replace(/-\s+(\d)/g, '-$1') 
+      .replace(/,/g, '.')
+      .replace(/(\d)\s+(\d)/g, '$1.$2') // Répare "20 0" en "20.0"
       .replace(/[°℃]/g, '')
-      .replace(/[A-Za-z]/g, ' ') 
-      .replace(/\s+/g, ' ')
+      .replace(/[^0-9.-]/g, ' ')
       .trim();
 
-    const allMatches = normalized.match(/-?\d+[.,]\d+|-?\d+/g) ?? [];
+    const matches = normalized.match(/-?\d+\.\d+|-?\d+/g) ?? [];
 
-    const candidates = allMatches
+    const candidates = matches
       .map(m => {
-        let v = m.replace(',', '.');
+        let v = m;
         const digitsOnly = v.replace('-', '').replace('.', '');
-        // Correction "Décimale manquante" (ex: 285 -> 28.5)
+        // Correction automatique : 285 -> 28.5
         if (digitsOnly.length === 3 && !v.includes('.')) {
           v = v.slice(0, -1) + '.' + v.slice(-1);
         }
         return parseFloat(v);
       })
-      .filter(n => !isNaN(n) && n >= -35 && n <= 45);
+      .filter(n => !isNaN(n) && n >= -40 && n <= 70);
 
-    // Priorité aux nombres avec décimales (souvent la sonde réelle)
+    // Priorité aux nombres décimaux
     temperature = candidates.find(n => !Number.isInteger(n)) ?? candidates[0] ?? null;
 
-    // --- ÉTAPE 3 : FALLBACK GEMINI (Seulement si Vision a tout raté) ---
+    // --- ÉTAPE 4 : FALLBACK GEMINI (Si Vision a échoué) ---
     if (temperature === null) {
       console.log('[Scan] Vision Montage échoué, passage à Gemini...');
       method = 'Gemini 1.5 Flash (Fallback)';
@@ -227,54 +230,37 @@ router.post('/temperature', requireAuth, upload.single('image'), async (req: Aut
       return res.status(422).json({ ok: false, error: 'Lecture impossible.' });
     }
 
-    // --- ÉTAPE 4 : MISE À JOUR QUOTA ---
+    // --- ÉTAPE 5 : MISE À JOUR QUOTA & ENREGISTREMENT ---
     await supabase.from('profiles')
       .update({ vision_scans_today: currentScans + 1, last_vision_reset: today })
       .eq('id', userId);
 
-      // --- LOGIQUE D'ENREGISTREMENT AUTOMATIQUE (LOGIQUE SERVICE MIDI/SOIR) ---
-const now = new Date();
-const currentHour = now.getHours(); // 0 à 23
+    const now = new Date();
+    const currentHour = now.getHours();
+    let serviceDate = new Date(now);
+    let periode: 'MIDI' | 'SOIR';
 
-let serviceDate = new Date(now);
-let periode: 'MIDI' | 'SOIR';
+    if (currentHour >= 7 && currentHour < 16) {
+      periode = 'MIDI';
+    } else {
+      periode = 'SOIR';
+      if (currentHour >= 0 && currentHour < 7) {
+        serviceDate.setDate(serviceDate.getDate() - 1);
+      }
+    }
 
-// 1. Détermination de la Période et de la Date de Service
-if (currentHour >= 7 && currentHour < 16) {
-  // Service du MIDI
-  periode = 'MIDI';
-} else {
-  // Service du SOIR
-  periode = 'SOIR';
-  
-  // LOGIQUE CRUCIALE : Si on est entre 00:00 et 06:59, on rattache au service SOIR de la veille
-  if (currentHour >= 0 && currentHour < 7) {
-    serviceDate.setDate(serviceDate.getDate() - 1);
-  }
-}
+    const dateString = serviceDate.toISOString().split('T')[0];
 
-// Formatage de la date en YYYY-MM-DD pour la base de données
-const dateString = serviceDate.toISOString().split('T')[0];
-
-console.log(`[Log] Enregistrement : ${dateString} - ${periode} (Heure réelle: ${currentHour}h)`);
-
-// 2. Insertion / Mise à jour dans Supabase
-const { error: logError } = await supabase
-  .from('temperature_logs')
-  .upsert({
-    user_id: userId,
-    date: dateString,
-    periode: periode,
-    valeur: temperature,
-    type_afficheur: method,
-    confiance: confidence
-  }, { 
-    onConflict: 'user_id,date,periode' 
-  });
-
-if (logError) {
-  console.error('[DB Log Error]', logError.message);
-}
+    await supabase
+      .from('temperature_logs')
+      .upsert({
+        user_id: userId,
+        date: dateString,
+        periode: periode,
+        valeur: temperature,
+        type_afficheur: method,
+        confiance: confidence
+      }, { onConflict: 'user_id,date,periode' });
 
     res.json({
       ok: true,
@@ -306,7 +292,7 @@ router.post('/haccp-update', requireAuth, async (req: AuthRequest, res: Response
         date,
         periode,
         valeur,
-        methode: 'Correction manuelle'
+        type_afficheur: 'Correction manuelle'
       }, { onConflict: 'user_id,date,periode' });
 
     if (error) throw error;
@@ -354,7 +340,7 @@ router.post('/recipes', requireAuth, async (req: AuthRequest, res: Response) => 
 
 // ─── GET /api/scan/haccp-logs ───────────────────────────────
 router.get('/haccp-logs', requireAuth, async (req: AuthRequest, res: Response) => {
-  const { year, month } = req.query; // On attend ex: ?year=2026&month=02
+  const { year, month } = req.query;
 
   if (!year || !month) {
     return res.status(400).json({ ok: false, error: 'Année et mois requis' });
