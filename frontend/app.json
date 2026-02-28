@@ -9,7 +9,7 @@
     "backgroundColor": "#000000",
     "splash": {
       "image": "./assets/splash.png",
-      "resizeMode": "contain",
+      "resizeMode": "cover",
       "backgroundColor": "#000000"
     },
     "scheme": "chefgestion",
@@ -46,6 +46,7 @@
     },
     "runtimeVersion": {
       "policy": "appVersion"
-    }
+    },
+    "owner": "chefgestion-pro"
   }
 }

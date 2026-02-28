@@ -5,7 +5,7 @@ import { Auth, Dashboard, DashboardData, ApiError, Suppliers, Haccp } from './ap
 interface AppCtx {
   user: StoredUser | null;
   dashboard: DashboardData | null;
-  state: DashboardData | null;      // Alias pour more.tsx
+  state: DashboardData | null;
   apiKey: string | null;
   isLoading: boolean;
   isLoggedIn: boolean;
@@ -13,9 +13,10 @@ interface AppCtx {
   signup: (name: string, email: string, password: string, apiKey?: string) => Promise<void>;
   logout: () => void;
   refreshDashboard: () => Promise<void>;
-  refreshData: () => Promise<void>;       // Alias pour more.tsx
+  refreshData: () => Promise<void>;
   setUser: (u: StoredUser) => void;
   setApiKey: (key: string) => Promise<void>;
+  requestPasswordReset: (email: string) => Promise<void>; // <--- LA LIGNE MAGIQUE
   addSupplier: (name: string) => Promise<void>;
   addHaccpPhoto: (photo: { name: string; uri: string }) => Promise<void>;
   clearAllData: () => Promise<void>;
@@ -66,7 +67,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           }).catch(() => logout());
           return;
         }
-      } catch { /* session vide */ }
+      } catch { }
       setIsLoading(false);
     })();
   }, [logout]);
@@ -89,47 +90,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setUserState(u);
   }, []);
 
-  const setUser = useCallback((u: StoredUser) => {
-    setUserState(u);
-    saveUser(u);
+  // FONCTION AJOUTÉE ICI
+  const requestPasswordReset = useCallback(async (email: string) => {
+    await Auth.forgotPassword(email);
   }, []);
 
-  // Correction : On appelle l'API pour sauvegarder la clé Gemini
   const setApiKey = useCallback(async (key: string) => {
     if (user) {
       await Auth.updateApiKey(key);
       const updatedUser = { ...user, apiKey: key };
-      setUser(updatedUser);
+      setUserState(updatedUser);
+      saveUser(updatedUser);
     }
-  }, [user, setUser]);
+  }, [user]);
 
-  // Correction : Utilisation des méthodes exactes de api.ts (add et uploadPhoto)
-  const addSupplier = useCallback(async (name: string) => {
-    await Suppliers.add(name);
-    await refreshDashboard();
-  }, [refreshDashboard]);
-
-  const addHaccpPhoto = useCallback(async (photo: { name: string; uri: string }) => {
-    await Haccp.uploadPhoto(photo.uri, photo.name);
-    await refreshDashboard();
-  }, [refreshDashboard]);
-
-  const clearAllData = useCallback(async () => {
-    await Dashboard.clearData();
-    await refreshDashboard();
-  }, [refreshDashboard]);
+  const addSupplier = useCallback(async (name: string) => { await Suppliers.add(name); await refreshDashboard(); }, [refreshDashboard]);
+  const addHaccpPhoto = useCallback(async (photo: { name: string; uri: string }) => { await Haccp.uploadPhoto(photo.uri, photo.name); await refreshDashboard(); }, [refreshDashboard]);
+  const clearAllData = useCallback(async () => { await Dashboard.clearData(); await refreshDashboard(); }, [refreshDashboard]);
 
   return (
     <Ctx.Provider value={{
-      user, 
-      dashboard, 
-      state: dashboard, 
-      apiKey: user?.apiKey || null,
-      isLoading, 
-      isLoggedIn: !!user,
-      login, signup, logout, setUser, setApiKey,
-      refreshDashboard, 
-      refreshData: refreshDashboard, 
+      user, dashboard, state: dashboard, apiKey: user?.apiKey || null,
+      isLoading, isLoggedIn: !!user,
+      login, signup, logout, setUser: setUserState, setApiKey,
+      refreshDashboard, refreshData: refreshDashboard,
+      requestPasswordReset, // <--- ET ICI
       addSupplier, addHaccpPhoto, clearAllData,
     }}>
       {children}

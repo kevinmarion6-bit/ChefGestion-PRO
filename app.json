@@ -1,12 +1,38 @@
 {
-  "expo": {
-    "extra": {
-      "eas": {
-        "projectId": "ad33f272-ebf7-4910-b9a1-1b0205451b96"
-      }
-    },
-    "android": {
-      "package": "com.kevin3166.chefgestionmonorepo"
-    }
-  }
+"expo": {
+"name": "ChefGestion PRO",
+"slug": "chefgestion-pro-dev",
+"owner": "chefgestion-pro",
+"version": "1.0.0",
+"orientation": "portrait",
+"icon": "./assets/icon.png",
+"userInterfaceStyle": "light",
+"splash": {
+"image": "./assets/splash.png",
+"resizeMode": "cover",
+"backgroundColor": "#ffffff"
+},
+"assetBundlePatterns": [
+"**/*"
+],
+"ios": {
+"supportsTablet": true,
+"bundleIdentifier": "com.kevin3166.chefgestionmonorepo"
+},
+"android": {
+"adaptiveIcon": {
+"foregroundImage": "./assets/adaptive-icon.png",
+"backgroundColor": "#ffffff"
+},
+"package": "com.kevin3166.chefgestionmonorepo"
+},
+"web": {
+"favicon": "./assets/favicon.png"
+},
+"extra": {
+"eas": {
+"projectId": "63dac985-d0f6-4c0d-9214-691427bfeb72"
+}
+}
+}
 }

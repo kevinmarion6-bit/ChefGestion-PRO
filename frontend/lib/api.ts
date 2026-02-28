@@ -1,6 +1,6 @@
 /**
  * Client API — toutes les communications avec le backend Express
- * Remplace les appels directs à Gemini et AsyncStorage
+ * Intègre maintenant la récupération de mot de passe via Resend
  */
 
 import { API_BASE_URL, TIMEOUT_MS } from './config';
@@ -22,6 +22,7 @@ async function apiFetch<T>(
       signal: controller.signal,
       headers: {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        'Content-Type': 'application/json', // Ajouté par défaut pour plus de sécurité
         ...(options.headers || {}),
       },
     });
@@ -48,7 +49,7 @@ async function apiUpload<T>(path: string, formData: FormData): Promise<T> {
   return apiFetch<T>(path, {
     method: 'POST',
     body: formData,
-    // Ne pas mettre Content-Type : fetch le gère automatiquement avec FormData
+    headers: {}, // On laisse le navigateur définir le Content-Type (boundary)
   });
 }
 
@@ -61,7 +62,7 @@ export class ApiError extends Error {
   }
 }
 
-// ─── TYPES ───────────────────────────────────────────────
+// ─── TYPES (Tes types originaux préservés) ────────────────
 
 export interface UserPublic {
   id: string;
@@ -125,13 +126,12 @@ export interface Recipe {
   suggestion_prix: number;
 }
 
-// ─── AUTH ────────────────────────────────────────────────
+// ─── AUTH (Avec les nouveaux ajouts) ───────────────────────
 
 export const Auth = {
   async signup(name: string, email: string, password: string, apiKey = '') {
     return apiFetch<{ token: string; user: UserPublic }>('/auth/signup', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, email, password, apiKey }),
     });
   },
@@ -139,7 +139,6 @@ export const Auth = {
   async login(email: string, password: string) {
     return apiFetch<{ token: string; user: UserPublic }>('/auth/login', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });
   },
@@ -151,10 +150,24 @@ export const Auth = {
   async updateApiKey(apiKey: string) {
     return apiFetch<{ apiKey: string }>('/auth/apikey', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ apiKey }),
     });
   },
+
+  // --- Nouveautés Resend ---
+  async forgotPassword(email: string) {
+    return apiFetch<{ message: string }>('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  async resetPassword(token: string, password: string) {
+    return apiFetch<{ ok: boolean }>('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
+    });
+  }
 };
 
 // ─── DASHBOARD ───────────────────────────────────────────
@@ -190,7 +203,6 @@ export const Scan = {
   async recipes(style: string, categorie: string): Promise<Recipe[]> {
     return apiFetch('/scan/recipes', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ style, categorie }),
     });
   },
@@ -228,7 +240,6 @@ export const Suppliers = {
   async add(name: string) {
     return apiFetch<Supplier>('/suppliers', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
     });
   },
@@ -288,13 +299,10 @@ export async function checkHealth() {
 
 async function uriToFormData(uri: string, fieldName: string): Promise<FormData> {
   const fd = new FormData();
-
-  // Sur React Native, on peut passer un objet { uri, name, type } directement
   (fd as any).append(fieldName, {
     uri,
     name: 'image.jpg',
     type: 'image/jpeg',
   });
-
   return fd;
 }
