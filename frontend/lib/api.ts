@@ -14,7 +14,13 @@ async function apiFetch<T>(
 ): Promise<T> {
   const token = await getToken();
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  
+  // LOGIQUE DE MINUTEUR :
+  // Si c'est l'authentification (réveil serveur), on attend 60s, sinon on garde ton TIMEOUT_MS habituel
+  const isAuthAction = path.includes('/auth/forgot-password') || path.includes('/auth/signup');
+  const waitTime = isAuthAction ? 60000 : TIMEOUT_MS;
+  
+  const timer = setTimeout(() => controller.abort(), waitTime);
 
   try {
     const res = await fetch(`${API_BASE_URL}${path}`, {
@@ -22,7 +28,7 @@ async function apiFetch<T>(
       signal: controller.signal,
       headers: {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        'Content-Type': 'application/json', // Ajouté par défaut pour plus de sécurité
+        'Content-Type': 'application/json',
         ...(options.headers || {}),
       },
     });
@@ -36,7 +42,12 @@ async function apiFetch<T>(
     return json.data as T;
   } catch (err) {
     if (err instanceof ApiError) throw err;
-    if ((err as Error).name === 'AbortError') throw new ApiError('Délai d\'attente dépassé — vérifiez votre connexion', 408);
+    if ((err as Error).name === 'AbortError') {
+      const msg = isAuthAction 
+        ? "Le Chef prépare la cuisine... (Réveil du serveur en cours). Réessaie dans 10 secondes."
+        : "Délai d'attente dépassé — vérifiez votre connexion";
+      throw new ApiError(msg, 408);
+    }
     throw new ApiError((err as Error).message, 0);
   } finally {
     clearTimeout(timer);
@@ -49,7 +60,7 @@ async function apiUpload<T>(path: string, formData: FormData): Promise<T> {
   return apiFetch<T>(path, {
     method: 'POST',
     body: formData,
-    headers: {}, // On laisse le navigateur définir le Content-Type (boundary)
+    headers: {}, 
   });
 }
 
@@ -62,7 +73,7 @@ export class ApiError extends Error {
   }
 }
 
-// ─── TYPES (Tes types originaux préservés) ────────────────
+// ─── TYPES ───────────────────────────────────────────────
 
 export interface UserPublic {
   id: string;
@@ -126,7 +137,7 @@ export interface Recipe {
   suggestion_prix: number;
 }
 
-// ─── AUTH (Avec les nouveaux ajouts) ───────────────────────
+// ─── AUTH ────────────────────────────────────────────────
 
 export const Auth = {
   async signup(name: string, email: string, password: string, apiKey = '') {
@@ -154,7 +165,6 @@ export const Auth = {
     });
   },
 
-  // --- Nouveautés Resend ---
   async forgotPassword(email: string) {
     return apiFetch<{ message: string }>('/auth/forgot-password', {
       method: 'POST',

@@ -80,9 +80,6 @@ export default function LoginScreen() {
   const [sPass, setSPass]     = useState('');
   const [sApi, setSApi]       = useState('');
 
-  // ── Gestion clavier sans KeyboardAvoidingView ──────────
-  // On utilise un padding animé sur le ScrollView à la place,
-  // ce qui évite complètement le bandeau blanc résiduel.
   const keyboardPad = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -99,7 +96,6 @@ export default function LoginScreen() {
 
     const onHide = (e: KeyboardEvent) => {
       Animated.timing(keyboardPad, {
-        // Retour à 0 — PAS de valeur résiduelle → pas de bandeau blanc
         toValue: 0,
         duration: Platform.OS === 'ios' ? e.duration : 180,
         useNativeDriver: false,
@@ -161,14 +157,11 @@ export default function LoginScreen() {
         ref={scrollRef as any}
         style={s.root}
         contentContainerStyle={[s.scroll, { paddingBottom: 60 }]}
-        // Le padding bottom animé remplace KeyboardAvoidingView
-        // → quand le clavier se ferme il revient à 0 sans laisser de blanc
         contentInset={{ bottom: 0 }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         bounces={false}
       >
-        {/* LOGO */}
         <View style={s.logoWrap}>
           <Image
             source={require('../../assets/logo.png')}
@@ -178,7 +171,6 @@ export default function LoginScreen() {
           <Text style={s.tagline}>⁘ SUIVI & GESTION CUISINE</Text>
         </View>
 
-        {/* CARD */}
         <View style={s.card}>
           <View style={s.cardTopLine} />
 
@@ -210,7 +202,18 @@ export default function LoginScreen() {
                   placeholder="••••••••" secure
                   autoComplete="current-password" textContent="password"
                 />
-                <View style={{ height: 8 }} />
+                
+                {/* --- AJOUT DU BOUTON MOT DE PASSE OUBLIÉ --- */}
+                <TouchableOpacity 
+                  onPress={() => router.push('/forgot-password')} 
+                  style={s.forgotLink}
+                  activeOpacity={0.7}
+                >
+                  <Text style={s.forgotLinkTxt}>Mot de passe oublié ?</Text>
+                </TouchableOpacity>
+
+                <View style={{ height: 12 }} />
+                
                 <TouchableOpacity style={[s.btn, loading && s.btnOff]} onPress={handleLogin} disabled={loading} activeOpacity={0.8}>
                   <Text style={s.btnTxt}>{loading ? 'Connexion...' : 'Se Connecter'}</Text>
                 </TouchableOpacity>
@@ -246,7 +249,6 @@ export default function LoginScreen() {
           </View>
         </View>
 
-        {/* Padding animé qui pousse le contenu quand le clavier s'ouvre */}
         <Animated.View style={{ height: keyboardPad }} />
       </Animated.ScrollView>
     </View>
@@ -255,33 +257,42 @@ export default function LoginScreen() {
 
 const s = StyleSheet.create({
   root:       { flex: 1, backgroundColor: C.black },
-scroll: { flexGrow: 1, padding: 24, paddingTop: 52, backgroundColor: C.black, justifyContent: 'center' },
-
+  scroll: { flexGrow: 1, padding: 24, paddingTop: 52, backgroundColor: C.black, justifyContent: 'center' },
   configTitle: { fontFamily: 'Cinzel_700SemiBold', fontSize: 16, color: C.gold, textAlign: 'center', marginBottom: 12 },
   configText:  { fontSize: 14, color: C.muted, textAlign: 'center', lineHeight: 22 },
-
   logoWrap: { alignItems: 'center', marginBottom: 28 },
   logoImg:  { width: 140, height: 140, marginBottom: 12 },
   tagline:  { fontFamily: 'Cinzel_400Regular', fontSize: 18, letterSpacing: 4, color: C.bronze, textTransform: 'uppercase', marginTop: 2 },
-
   card:        { backgroundColor: C.charcoal, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(212,175,55,0.22)', overflow: 'hidden' },
   cardTopLine: { height: 1, backgroundColor: C.gold, opacity: 0.5 },
-
-  tabs:         { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: 'rgba(212,175,55,0.12)' },
+  tabs:          { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: 'rgba(212,175,55,0.12)' },
   tab:          { flex: 1, paddingVertical: 15, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent', marginBottom: -1 },
   tabActive:    { borderBottomColor: C.gold },
   tabTxt:       { fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: C.muted },
   tabTxtActive: { color: C.gold },
-
   formPad:    { padding: 22 },
   fieldWrap:  { marginBottom: 18 },
   fieldLabel: { fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: C.mutedL, marginBottom: 8, fontWeight: '600' },
   input:      { backgroundColor: C.blackM, borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)', borderRadius: 8, padding: 14, color: C.cream, fontSize: 17, fontWeight: '500' },
 
+  // --- NOUVEAUX STYLES POUR LE LIEN ---
+  forgotLink: {
+    alignSelf: 'flex-end',
+    marginTop: -4, 
+    paddingVertical: 8,
+  },
+  forgotLinkTxt: {
+    fontFamily: 'Cinzel_400Regular', // Passage en Gras
+    fontSize: 14, // Un peu plus grand (était à 9)
+    letterSpacing: 1.5,
+    color: C.gold, // Passage en Or pour qu'on ne le rate pas
+    textDecorationLine: 'underline',
+  },
+  // -----------------------------------
+
   geminiBox:   { marginTop: 8, paddingTop: 16, borderTopWidth: 1, borderTopColor: 'rgba(212,175,55,0.1)' },
   geminiTitle: { fontFamily: 'Cinzel_400Regular', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: C.bronze, marginBottom: 10 },
   geminiNote:  { fontSize: 12, color: C.muted, fontStyle: 'italic', marginTop: 4 },
-
   btn:    { backgroundColor: C.gold, borderRadius: 8, padding: 16, alignItems: 'center', marginTop: 4 },
   btnOff: { opacity: 0.6 },
   btnTxt: { fontFamily: 'Cinzel_700SemiBold', fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', color: C.black, fontWeight: '700' },

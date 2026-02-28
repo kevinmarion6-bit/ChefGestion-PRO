@@ -7,12 +7,17 @@ const router = Router();
 // ─── SIGNUP ──────────────────────────────────────────────
 router.post('/signup', async (req: Request, res: Response) => {
   const { name, email, password, apiKey = '' } = req.body;
-  if (!name || !email || !password) { res.status(400).json({ ok: false, error: 'Nom, e-mail et mot de passe requis' }); return; }
-  if (password.length < 8) { res.status(400).json({ ok: false, error: 'Mot de passe : minimum 8 caractères' }); return; }
+  if (!name || !email || !password) { 
+    return res.status(400).json({ ok: false, error: 'Nom, e-mail et mot de passe requis' }); 
+  }
+  if (password.length < 8) { 
+    return res.status(400).json({ ok: false, error: 'Mot de passe : minimum 8 caractères' }); 
+  }
 
   try {
     const { data: created, error: createErr } = await supabase.auth.admin.createUser({
-      email, password,
+      email, 
+      password,
       email_confirm: true,
       user_metadata: { name, api_key: apiKey },
     });
@@ -21,12 +26,13 @@ router.post('/signup', async (req: Request, res: Response) => {
       const msg = createErr.message.toLowerCase().includes('already')
         ? 'Un compte existe déjà avec cet e-mail'
         : createErr.message;
-      res.status(409).json({ ok: false, error: msg });
-      return;
+      return res.status(409).json({ ok: false, error: msg });
     }
 
     const { data: session, error: sessErr } = await supabase.auth.signInWithPassword({ email, password });
-    if (sessErr || !session.session) { res.status(500).json({ ok: false, error: 'Compte créé mais connexion échouée' }); return; }
+    if (sessErr || !session.session) { 
+      return res.status(500).json({ ok: false, error: 'Compte créé mais connexion échouée' }); 
+    }
 
     res.status(201).json({
       ok: true,
@@ -36,19 +42,23 @@ router.post('/signup', async (req: Request, res: Response) => {
       },
     });
   } catch (err) {
-    console.error('[/auth/signup]', err);
-    res.status(500).json({ ok: false, error: 'Erreur serveur' });
+    console.error('[/auth/signup] Erreur:', err);
+    res.status(500).json({ ok: false, error: 'Erreur serveur lors de l\'inscription' });
   }
 });
 
 // ─── LOGIN ───────────────────────────────────────────────
 router.post('/login', async (req: Request, res: Response) => {
   const { email, password } = req.body;
-  if (!email || !password) { res.status(400).json({ ok: false, error: 'E-mail et mot de passe requis' }); return; }
+  if (!email || !password) { 
+    return res.status(400).json({ ok: false, error: 'E-mail et mot de passe requis' }); 
+  }
 
   try {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error || !data.session) { res.status(401).json({ ok: false, error: 'E-mail ou mot de passe incorrect' }); return; }
+    if (error || !data.session) { 
+      return res.status(401).json({ ok: false, error: 'E-mail ou mot de passe incorrect' }); 
+    }
 
     const { data: profile } = await supabase
       .from('profiles').select('name, api_key').eq('id', data.user.id).single();
@@ -66,55 +76,68 @@ router.post('/login', async (req: Request, res: Response) => {
       },
     });
   } catch (err) {
-    console.error('[/auth/login]', err);
-    res.status(500).json({ ok: false, error: 'Erreur serveur' });
+    console.error('[/auth/login] Erreur:', err);
+    res.status(500).json({ ok: false, error: 'Erreur serveur lors de la connexion' });
   }
 });
 
-// ─── FORGOT PASSWORD (NOUVEAU) ───────────────────────────
+// ─── FORGOT PASSWORD ─────────────────────────────────────
 router.post('/forgot-password', async (req: Request, res: Response) => {
   const { email } = req.body;
-  if (!email) { res.status(400).json({ ok: false, error: 'E-mail requis' }); return; }
+  if (!email) { return res.status(400).json({ ok: false, error: 'E-mail requis' }); }
 
   try {
-    // Demande à Supabase d'envoyer le mail de récup (Lien ou Code selon tes réglages)
+    // Demande à Supabase d'envoyer le code OTP (recovery)
     const { error } = await supabase.auth.resetPasswordForEmail(email);
     
     if (error) {
-      // Pour éviter le "user enumeration", on pourrait renvoyer OK même si l'email n'existe pas
-      res.status(400).json({ ok: false, error: error.message });
-      return;
+      console.error('[Supabase Forgot] Error:', error.message);
+      return res.status(400).json({ ok: false, error: error.message });
     }
 
-    res.json({ ok: true, data: { message: 'Lien de récupération envoyé' } });
+    res.json({ ok: true, data: { message: 'Code de récupération envoyé' } });
   } catch (err) {
+    console.error('[/auth/forgot-password] Erreur:', err);
     res.status(500).json({ ok: false, error: 'Erreur serveur' });
   }
 });
 
-// ─── RESET PASSWORD (NOUVEAU) ─────────────────────────────
+// ─── RESET PASSWORD (OPTIMISÉ) ───────────────────────────
 router.post('/reset-password', async (req: Request, res: Response) => {
-  const { token, password } = req.body; // 'token' peut être le code reçu par mail
-  if (!token || !password) { res.status(400).json({ ok: false, error: 'Données manquantes' }); return; }
+  const { email, token, password } = req.body; 
+  
+  if (!email || !token || !password) { 
+    return res.status(400).json({ ok: false, error: 'E-mail, code et nouveau mot de passe requis' }); 
+  }
 
   try {
-    // 1. On vérifie le code/token et on crée une session temporaire
-    const { error: verifyErr } = await supabase.auth.verifyOtp({
-      email: req.body.email, // Optionnel selon ta config Supabase
+    // 1. On vérifie le code OTP pour cet email précis
+    const { data, error: verifyErr } = await supabase.auth.verifyOtp({
+      email,
       token,
-      type: 'recovery'
+      type: 'recovery' // Obligatoire pour le reset password
     });
 
-    if (verifyErr) { res.status(400).json({ ok: false, error: 'Code invalide ou expiré' }); return; }
+    if (verifyErr || !data.user) { 
+      console.error('[OTP Verify Error] Email:', email, 'Error:', verifyErr?.message);
+      return res.status(400).json({ ok: false, error: 'Code invalide ou expiré' }); 
+    }
 
-    // 2. On met à jour le mot de passe
-    const { error: updateErr } = await supabase.auth.updateUser({ password });
+    // 2. On met à jour le mot de passe via l'Admin API pour plus de fiabilité
+    const { error: updateErr } = await supabase.auth.admin.updateUserById(
+      data.user.id, 
+      { password }
+    );
     
-    if (updateErr) throw updateErr;
+    if (updateErr) {
+      console.error('[Update Password Error]', updateErr.message);
+      return res.status(500).json({ ok: false, error: 'Échec de la mise à jour du mot de passe' });
+    }
 
-    res.json({ ok: true, data: { ok: true } });
+    res.json({ ok: true, data: { ok: true, message: 'Mot de passe mis à jour' } });
   } catch (err: any) {
-    res.status(500).json({ ok: false, error: err.message });
+    console.error('[/auth/reset-password] Erreur:', err);
+    res.status(500).json({ ok: false, error: 'Erreur serveur interne' });
   }
 });
 
@@ -125,16 +148,29 @@ router.get('/me', requireAuth, async (req: AuthRequest, res: Response) => {
       supabase.from('profiles').select('name, api_key').eq('id', req.userId!).single(),
       supabase.auth.admin.getUserById(req.userId!),
     ]);
-    if (!profile) { res.status(404).json({ ok: false, error: 'Profil introuvable' }); return; }
-    res.json({ ok: true, data: { id: req.userId, name: profile.name, email: userInfo?.user?.email ?? '', apiKey: profile.api_key ?? '' } });
-  } catch { res.status(500).json({ ok: false, error: 'Erreur serveur' }); }
+    if (!profile) { return res.status(404).json({ ok: false, error: 'Profil introuvable' }); }
+    
+    res.json({ 
+      ok: true, 
+      data: { 
+        id: req.userId, 
+        name: profile.name, 
+        email: userInfo?.user?.email ?? '', 
+        apiKey: profile.api_key ?? '' 
+      } 
+    });
+  } catch (err) { 
+    res.status(500).json({ ok: false, error: 'Erreur serveur' }); 
+  }
 });
 
 router.patch('/apikey', requireAuth, async (req: AuthRequest, res: Response) => {
   const { apiKey } = req.body;
-  if (typeof apiKey !== 'string') { res.status(400).json({ ok: false, error: 'apiKey requis' }); return; }
+  if (typeof apiKey !== 'string') { return res.status(400).json({ ok: false, error: 'apiKey requis' }); }
+  
   const { error } = await supabase.from('profiles').update({ api_key: apiKey }).eq('id', req.userId!);
-  if (error) { res.status(500).json({ ok: false, error: error.message }); return; }
+  if (error) { return res.status(500).json({ ok: false, error: error.message }); }
+  
   res.json({ ok: true, data: { apiKey } });
 });
 

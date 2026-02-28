@@ -1,144 +1,136 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useApp } from '../../lib/context';
-import { Auth } from '../../lib/api';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, TextInput, ScrollView } from 'react-native';
+import { router } from 'expo-router';
+import { Auth } from '@/lib/api';
+import { MaterialCommunityIcons } from '@expo/vector-icons'; // Ajout de l'icône
+
+const C = {
+  black: '#000', blackM: '#111', charcoal: '#1A1A1A',
+  gold: '#D4AF37', bronze: '#CD7F32',
+  cream: '#F5F5DC', muted: '#6B6050', mutedL: '#8A7A60',
+};
 
 export default function ResetPasswordScreen() {
-  const router = useRouter();
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isSecure, setIsSecure] = useState(true); // État pour la visibilité
 
   const handleReset = async () => {
-    if (!email || !code || !password) {
-      Alert.alert('Erreur', 'Tous les champs sont requis.');
-      return;
-    }
-
-    if (password.length < 8) {
-      Alert.alert('Sécurité', 'Le mot de passe doit faire au moins 8 caractères.');
-      return;
-    }
+    if (!email || !code || !password) { Alert.alert('Champs requis', 'Remplis tous les champs.'); return; }
+    if (password.length < 8) { Alert.alert('Sécurité', 'Le mot de passe doit faire 8 caractères min.'); return; }
 
     setLoading(true);
     try {
-      // On appelle notre API Express sur Render
-      // Le 'token' attendu par notre route est ici le code à 6 chiffres
-      await Auth.resetPassword(code, password); 
+      await Auth.resetPassword(code, password);
       
       Alert.alert(
-        'Succès !', 
-        'Ton mot de passe a été mis à jour. Tu peux maintenant te connecter.',
-        [{ text: 'OK', onPress: () => router.replace('/login') }]
+        'Succès ! 👨‍🍳', 
+        'Ton mot de passe a été mis à jour avec succès.',
+        [{ text: 'Se connecter', onPress: () => router.replace('/login') }]
       );
     } catch (err: any) {
-      Alert.alert('Erreur', err.message || 'Le code est invalide ou a expiré.');
+      Alert.alert('Erreur', 'Code invalide ou expiré. Réessaie.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
-      style={styles.container}
-    >
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Nouveau mot de passe 🔑</Text>
-          <Text style={styles.subtitle}>Saisis le code reçu par mail et ton nouveau mot de passe.</Text>
-        </View>
+    <ScrollView contentContainerStyle={s.root} bounces={false}>
+      <View style={s.logoWrap}>
+        <Text style={s.tagline}>🔒 NOUVEL ACCÈS</Text>
+      </View>
 
-        <View style={styles.form}>
-          <Text style={styles.label}>Ton E-mail</Text>
+      <View style={s.card}>
+        <View style={s.cardTopLine} />
+        <View style={s.formPad}>
+          
+          <Text style={s.fieldLabel}>Ton adresse e-mail</Text>
           <TextInput
-            style={styles.input}
-            placeholder="chef@lacabana.fr"
+            style={s.input}
             value={email}
             onChangeText={setEmail}
-            autoCapitalize="none"
+            placeholder="exemple-chef@gmail.com"
+            placeholderTextColor={C.muted}
             keyboardType="email-address"
+            autoCapitalize="none"
           />
 
-          <Text style={styles.label}>Code de validation (6 chiffres)</Text>
+          <View style={{ height: 18 }} />
+
+          <Text style={s.fieldLabel}>Code de validation (6 chiffres)</Text>
           <TextInput
-            style={[styles.input, styles.codeInput]}
-            placeholder="123456"
+            style={[s.input, s.codeInput]}
             value={code}
             onChangeText={setCode}
+            placeholder="123456"
+            placeholderTextColor={C.muted}
             keyboardType="number-pad"
             maxLength={6}
           />
 
-          <Text style={styles.label}>Nouveau mot de passe</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Minimum 8 caractères"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
+          <View style={{ height: 18 }} />
 
-          <TouchableOpacity 
-            style={[styles.button, loading && styles.buttonDisabled]} 
-            onPress={handleReset}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>Valider le changement</Text>
-            )}
+          <Text style={s.fieldLabel}>Nouveau mot de passe</Text>
+          {/* Conteneur pour aligner l'œil */}
+          <View style={s.passWrap}>
+            <TextInput
+              style={[s.input, { flex: 1, paddingRight: 50 }]}
+              value={password}
+              onChangeText={setPassword}
+              placeholder="••••••••"
+              placeholderTextColor={C.muted}
+              secureTextEntry={isSecure}
+            />
+            <TouchableOpacity 
+              style={s.eye} 
+              onPress={() => setIsSecure(!isSecure)}
+            >
+              <MaterialCommunityIcons 
+                name={isSecure ? "eye-off" : "eye"} 
+                size={20} 
+                color={C.gold} 
+              />
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity style={[s.btn, loading && s.btnOff]} onPress={handleReset} disabled={loading}>
+            <Text style={s.btnTxt}>{loading ? 'Mise à jour...' : 'Valider le changement'}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Text style={styles.backText}>Annuler</Text>
+          <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 20, alignItems: 'center' }}>
+            <Text style={s.backTxt}>Retour</Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </View>
+    </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  scroll: { flexGrow: 1, padding: 25, justifyContent: 'center' },
-  header: { marginBottom: 40 },
-  title: { fontSize: 28, fontWeight: 'bold', color: '#1a1a1a', marginBottom: 10 },
-  subtitle: { fontSize: 16, color: '#666', lineHeight: 22 },
-  form: { width: '100%' },
-  label: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 8, marginTop: 15 },
-  input: {
-    backgroundColor: '#f8f9fa',
-    borderRadius: 10,
-    padding: 15,
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: '#eee',
+const s = StyleSheet.create({
+  root: { flexGrow: 1, backgroundColor: C.black, justifyContent: 'center', padding: 24 },
+  logoWrap: { alignItems: 'center', marginBottom: 28 },
+  tagline: { fontFamily: 'Cinzel_400Regular', fontSize: 22, letterSpacing: 4, color: C.gold, textTransform: 'uppercase' },
+  card: { backgroundColor: C.charcoal, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(212,175,55,0.22)', overflow: 'hidden' },
+  cardTopLine: { height: 1, backgroundColor: C.gold, opacity: 0.5 },
+  formPad: { padding: 22 },
+  fieldLabel: { fontFamily: 'Cinzel_400Regular', fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', color: C.mutedL, marginBottom: 8 },
+  input: { backgroundColor: C.blackM, borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)', borderRadius: 8, padding: 14, color: C.cream, fontSize: 17 },
+  // Nouveaux styles pour l'œil
+  passWrap: { flexDirection: 'row', alignItems: 'center' },
+  eye: { position: 'absolute', right: 14, padding: 4 },
+  
+  codeInput: { 
+    textAlign: 'center', 
+    letterSpacing: 8, 
+    fontSize: 22, 
+    fontFamily: 'DMSans_700Bold', 
+    color: C.gold 
   },
-  codeInput: {
-    letterSpacing: 10,
-    textAlign: 'center',
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#007AFF',
-  },
-  button: {
-    backgroundColor: '#000',
-    padding: 18,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginTop: 30,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  buttonDisabled: { opacity: 0.7 },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-  backButton: { marginTop: 20, alignItems: 'center' },
-  backText: { color: '#666', fontSize: 14 },
+  btn: { backgroundColor: C.gold, borderRadius: 8, padding: 16, alignItems: 'center', marginTop: 20 },
+  btnOff: { opacity: 0.6 },
+  btnTxt: { fontFamily: 'Cinzel_700SemiBold', fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', color: C.black },
+  backTxt: { fontFamily: 'Cinzel_400Regular', fontSize: 14, color: C.muted, letterSpacing: 1, textDecorationLine: 'underline' }
 });
