@@ -16,12 +16,12 @@ router.post('/signup', async (req: Request, res: Response) => {
   }
 
   try {
-    // Utilisation de signUp (méthode client) pour déclencher le SMTP Gmail
+    // Utilisation de signUp pour déclencher l'envoi du mail de confirmation
     const { data, error: signUpErr } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: { name, api_key: apiKey }, // Stocké dans user_metadata
+        data: { name, api_key: apiKey },
       },
     });
 
@@ -32,25 +32,30 @@ router.post('/signup', async (req: Request, res: Response) => {
       return res.status(409).json({ ok: false, error: msg });
     }
 
-    // Si data.session est null, c'est que la confirmation par mail est active dans Supabase
+    // CAS 1 : Confirmation par mail active (data.session est null)
     if (data.user && !data.session) {
       return res.status(201).json({
         ok: true,
-        confirmRequired: true,
-        message: 'Lien de confirmation envoyé par e-mail.'
+        data: {
+          confirmRequired: true,
+          message: 'Lien de confirmation envoyé par e-mail.',
+          user: { id: data.user.id, name, email, apiKey }
+        }
       });
     }
 
-    res.status(201).json({
+    // CAS 2 : Inscription directe (si mail désactivé dans Supabase)
+    return res.status(201).json({
       ok: true,
       data: {
         token: data.session?.access_token,
         user: { id: data.user?.id, name, email, apiKey },
       },
     });
+
   } catch (err) {
     console.error('[/auth/signup] Erreur:', err);
-    res.status(500).json({ ok: false, error: 'Erreur serveur lors de l\'inscription' });
+    return res.status(500).json({ ok: false, error: 'Erreur serveur lors de l\'inscription' });
   }
 });
 
@@ -75,7 +80,7 @@ router.post('/login', async (req: Request, res: Response) => {
     const { data: profile } = await supabase
       .from('profiles').select('name, api_key').eq('id', data.user.id).single();
 
-    res.json({
+    return res.json({
       ok: true,
       data: {
         token: data.session.access_token,
@@ -89,7 +94,7 @@ router.post('/login', async (req: Request, res: Response) => {
     });
   } catch (err) {
     console.error('[/auth/login] Erreur:', err);
-    res.status(500).json({ ok: false, error: 'Erreur serveur lors de la connexion' });
+    return res.status(500).json({ ok: false, error: 'Erreur serveur lors de la connexion' });
   }
 });
 
@@ -101,8 +106,8 @@ router.post('/forgot-password', async (req: Request, res: Response) => {
   try {
     const { error } = await supabase.auth.resetPasswordForEmail(email);
     if (error) return res.status(400).json({ ok: false, error: error.message });
-    res.json({ ok: true, message: 'Code de récupération envoyé' });
-  } catch (err) { res.status(500).json({ ok: false, error: 'Erreur serveur' }); }
+    return res.json({ ok: true, message: 'Code de récupération envoyé' });
+  } catch (err) { return res.status(500).json({ ok: false, error: 'Erreur serveur' }); }
 });
 
 router.post('/reset-password', async (req: Request, res: Response) => {
@@ -116,8 +121,8 @@ router.post('/reset-password', async (req: Request, res: Response) => {
     const { error: updateErr } = await supabase.auth.admin.updateUserById(data.user.id, { password });
     if (updateErr) return res.status(500).json({ ok: false, error: 'Échec de la mise à jour' });
 
-    res.json({ ok: true, message: 'Mot de passe mis à jour' });
-  } catch (err) { res.status(500).json({ ok: false, error: 'Erreur serveur' }); }
+    return res.json({ ok: true, message: 'Mot de passe mis à jour' });
+  } catch (err) { return res.status(500).json({ ok: false, error: 'Erreur serveur' }); }
 });
 
 // ─── ME & API KEY ────────────────────────────────────────
@@ -125,15 +130,15 @@ router.get('/me', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', req.userId!).single();
     if (!profile) return res.status(404).json({ ok: false, error: 'Profil introuvable' });
-    res.json({ ok: true, data: profile });
-  } catch (err) { res.status(500).json({ ok: false, error: 'Erreur serveur' }); }
+    return res.json({ ok: true, data: profile });
+  } catch (err) { return res.status(500).json({ ok: false, error: 'Erreur serveur' }); }
 });
 
 router.patch('/apikey', requireAuth, async (req: AuthRequest, res: Response) => {
   const { apiKey } = req.body;
   const { error } = await supabase.from('profiles').update({ api_key: apiKey }).eq('id', req.userId!);
   if (error) return res.status(500).json({ ok: false, error: error.message });
-  res.json({ ok: true, data: { apiKey } });
+  return res.json({ ok: true, data: { apiKey } });
 });
 
 export default router;
