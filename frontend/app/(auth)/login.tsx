@@ -16,6 +16,7 @@ const C = {
   cream: '#F5F5DC', muted: '#6B6050', mutedL: '#8A7A60',
 };
 
+// --- COMPOSANT DE CHAMP SAISIE ---
 function Field({
   label, value, onChange, placeholder,
   secure = false, keyboard = 'default', mono = false,
@@ -67,12 +68,15 @@ function Field({
   );
 }
 
+// --- ÉCRAN PRINCIPAL ---
 export default function LoginScreen() {
   const { login, signup } = useApp();
   const scrollRef = useRef<ScrollView>(null);
 
+  // States
   const [tab, setTab]         = useState<'login' | 'signup'>('login');
   const [loading, setLoading] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
   const [lEmail, setLEmail]   = useState('');
   const [lPass, setLPass]     = useState('');
   const [sName, setSName]     = useState('');
@@ -82,6 +86,7 @@ export default function LoginScreen() {
 
   const keyboardPad = useRef(new Animated.Value(0)).current;
 
+  // Gestion du clavier (Animation)
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
@@ -107,161 +112,190 @@ export default function LoginScreen() {
     return () => { s1.remove(); s2.remove(); };
   }, []);
 
+  // Actions
+  function switchTab(t: 'login' | 'signup') {
+    Keyboard.dismiss();
+    setTab(t);
+    setTimeout(() => {
+        scrollRef.current?.scrollTo({ y: 0, animated: true });
+    }, 100);
+  }
+
+  async function handleLogin() {
+    Keyboard.dismiss();
+    if (!lEmail || !lPass) { Alert.alert('Champs requis', 'Remplissez e-mail et mot de passe.'); return; }
+    setLoading(true);
+    try {
+      await login(lEmail, lPass);
+      router.replace('/(tabs)');
+    } catch (e: any) {
+      // Gestion spécifique de l'erreur 403 (Email non confirmé)
+      const isAuthError = e.status === 403 || e.message?.toLowerCase().includes('confirm');
+      const msg = isAuthError 
+        ? "Confirmez d'abord votre email Chef !" 
+        : (e instanceof ApiError ? e.message : 'Connexion impossible. Vérifiez que le backend est lancé.');
+      
+      Alert.alert('Erreur', msg);
+    } finally { setLoading(false); }
+  }
+
+  async function handleSignup() {
+    Keyboard.dismiss();
+    if (!sName || !sEmail || !sPass) { Alert.alert('Champs requis', 'Remplissez tous les champs.'); return; }
+    if (sPass.length < 8) { Alert.alert('Mot de passe', 'Minimum 8 caractères.'); return; }
+   
+    setLoading(true);
+    try {
+      // Cast "as any" pour éviter l'erreur TS sur confirmRequired
+      const result = await signup(sName, sEmail, sPass, sApi) as any;
+      
+      if (result?.confirmRequired) {
+        setIsSubmitted(true);
+        scrollRef.current?.scrollTo({ y: 0, animated: true });
+      } else {
+        router.replace('/(tabs)');
+      }
+    } catch (e) {
+      Alert.alert('Erreur', e instanceof ApiError ? e.message : 'Inscription impossible.');
+    } finally { setLoading(false); }
+  }
+
+  // --- RENDUS CONDITIONNELS ---
+
   if (!isConfigured()) {
     return (
       <View style={[s.root, { alignItems: 'center', justifyContent: 'center', padding: 24 }]}>
         <Text style={{ fontSize: 36, marginBottom: 16 }}>⚙️</Text>
         <Text style={s.configTitle}>Configuration requise</Text>
         <Text style={s.configText}>
-          Ouvrez{' '}
-          <Text style={{ color: C.gold, fontFamily: 'DMSans_400Regular' }}>frontend/lib/config.ts</Text>
-          {' '}et remplacez{' '}
-          <Text style={{ color: C.gold }}>VOTRE_IP_ICI</Text>
-          {' '}par l'IP du backend.
+          Ouvrez <Text style={{ color: C.gold, fontFamily: 'DMSans_400Regular' }}>frontend/lib/config.ts</Text> et remplacez <Text style={{ color: C.gold }}>VOTRE_IP_ICI</Text> par l'IP du backend.
         </Text>
       </View>
     );
   }
 
-  async function handleLogin() {
-    Keyboard.dismiss(); // Fermeture clavier
-    if (!lEmail || !lPass) { Alert.alert('Champs requis', 'Remplissez e-mail et mot de passe.'); return; }
-    setLoading(true);
-    try {
-      await login(lEmail, lPass);
-      router.replace('/(tabs)');
-    } catch (e) {
-      Alert.alert('Erreur', e instanceof ApiError ? e.message : 'Connexion impossible. Vérifiez que le backend est lancé.');
-    } finally { setLoading(false); }
+  if (isSubmitted) {
+    return (
+      <View style={[s.root, { justifyContent: 'center', padding: 24 }]}>
+        <View style={[s.card, { padding: 30, alignItems: 'center' }]}>
+          <MaterialCommunityIcons name="email-check-outline" size={60} color={C.gold} />
+          <Text style={[s.configTitle, { marginTop: 20 }]}>VÉRIFIE TES MAILS</Text>
+          <Text style={[s.configText, { marginBottom: 24 }]}>
+            Chef, un lien de confirmation a été envoyé à :{"\n"}
+            <Text style={{ color: C.cream, fontWeight: 'bold' }}>{sEmail}</Text>
+          </Text>
+          <TouchableOpacity
+            style={[s.btn, { width: '100%' }]}
+            onPress={() => { setIsSubmitted(false); setTab('login'); }}
+          >
+            <Text style={s.btnTxt}>RETOUR À LA CONNEXION</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
   }
 
-  async function handleSignup() {
-    Keyboard.dismiss(); // Fermeture clavier
-    if (!sName || !sEmail || !sPass) { Alert.alert('Champs requis', 'Remplissez tous les champs.'); return; }
-    if (sPass.length < 8) { Alert.alert('Mot de passe', 'Minimum 8 caractères.'); return; }
-    setLoading(true);
-    try {
-      await signup(sName, sEmail, sPass, sApi);
-      router.replace('/(tabs)');
-    } catch (e) {
-      Alert.alert('Erreur', e instanceof ApiError ? e.message : 'Inscription impossible.');
-    } finally { setLoading(false); }
-  }
-
-  function switchTab(t: 'login' | 'signup') {
-    Keyboard.dismiss(); // Fermeture clavier lors du changement d'onglet
-    setTab(t);
-    scrollRef.current?.scrollTo({ y: 0, animated: true });
-  }
-
+  // --- RENDU DU FORMULAIRE ---
   return (
     <View style={s.root}>
-      <Animated.ScrollView
-        ref={scrollRef as any}
-        style={s.root}
-        contentContainerStyle={[s.scroll, { paddingBottom: 60 }]}
-        contentInset={{ bottom: 0 }}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-        bounces={false}
-      >
-        {/* Enveloppe tactile pour fermer le clavier au clic n'importe où */}
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={{ flex: 1 }}>
-            <View style={s.logoWrap}>
-              <Image
-                source={require('../../assets/logo.png')}
-                style={s.logoImg}
-                resizeMode="contain"
-              />
-              <Text style={s.tagline}>⁘ SUIVI & GESTION CUISINE ⁘</Text>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <Animated.ScrollView
+          ref={scrollRef as any}
+          style={s.root}
+          contentContainerStyle={[s.scroll, { paddingBottom: 60 }]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
+          <View style={s.logoWrap}>
+            <Image
+              source={require('../../assets/logo.png')}
+              style={s.logoImg}
+              resizeMode="contain"
+            />
+            <Text style={s.tagline}>⁘ SUIVI & GESTION CUISINE ⁘</Text>
+          </View>
+
+          <View style={s.card}>
+            <View style={s.cardTopLine} />
+            <View style={s.tabs}>
+              {(['login', 'signup'] as const).map(t => (
+                <TouchableOpacity
+                  key={t}
+                  style={[s.tab, tab === t && s.tabActive]}
+                  onPress={() => switchTab(t)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[s.tabTxt, tab === t && s.tabTxtActive]}>
+                    {t === 'login' ? 'Connexion' : 'Inscription'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
 
-            <View style={s.card}>
-              <View style={s.cardTopLine} />
-
-              <View style={s.tabs}>
-                {(['login', 'signup'] as const).map(t => (
+            <View style={s.formPad}>
+              {tab === 'login' ? (
+                <>
+                  <Field
+                    label="Adresse e-mail" value={lEmail} onChange={setLEmail}
+                    placeholder="exemple-chef@gmail.com" keyboard="email-address"
+                    autoComplete="email" textContent="emailAddress"
+                  />
+                  <Field
+                    label="Mot de passe" value={lPass} onChange={setLPass}
+                    placeholder="••••••••" secure
+                    autoComplete="current-password" textContent="password"
+                  />
                   <TouchableOpacity
-                    key={t}
-                    style={[s.tab, tab === t && s.tabActive]}
-                    onPress={() => switchTab(t)}
+                    onPress={() => { Keyboard.dismiss(); router.push('/forgot-password'); }}
+                    style={s.forgotLink}
                     activeOpacity={0.7}
                   >
-                    <Text style={[s.tabTxt, tab === t && s.tabTxtActive]}>
-                      {t === 'login' ? 'Connexion' : 'Inscription'}
-                    </Text>
+                    <Text style={s.forgotLinkTxt}>Mot de passe oublié ?</Text>
                   </TouchableOpacity>
-                ))}
-              </View>
-
-              <View style={s.formPad}>
-                {tab === 'login' ? (
-                  <>
-                    <Field
-                      label="Adresse e-mail" value={lEmail} onChange={setLEmail}
-                      placeholder="exemple-chef@gmail.com" keyboard="email-address"
-                      autoComplete="email" textContent="emailAddress"
-                    />
-                    <Field
-                      label="Mot de passe" value={lPass} onChange={setLPass}
-                      placeholder="••••••••" secure
-                      autoComplete="current-password" textContent="password"
-                    />
-                    
-                    <TouchableOpacity 
-                      onPress={() => { Keyboard.dismiss(); router.push('/forgot-password'); }} 
-                      style={s.forgotLink}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={s.forgotLinkTxt}>Mot de passe oublié ?</Text>
-                    </TouchableOpacity>
-
-                    <View style={{ height: 12 }} />
-                    
-                    <TouchableOpacity style={[s.btn, loading && s.btnOff]} onPress={handleLogin} disabled={loading} activeOpacity={0.8}>
-                      <Text style={s.btnTxt}>{loading ? 'Connexion...' : 'Se Connecter'}</Text>
-                    </TouchableOpacity>
-                  </>
-                ) : (
-                  <>
-                    <Field
-                      label="Prénom & Nom" value={sName} onChange={setSName}
-                      placeholder="Paul Bocuse" capitalize="words"
-                      autoComplete="name" textContent="name"
-                    />
-                    <Field
-                      label="Adresse e-mail" value={sEmail} onChange={setSEmail}
-                      placeholder="exemple-chef@gmail.com" keyboard="email-address"
-                      autoComplete="email" textContent="emailAddress"
-                    />
-                    <Field
-                      label="Mot de passe (8 car. min.)" value={sPass} onChange={setSPass}
-                      placeholder="••••••••" secure
-                      autoComplete="new-password" textContent="newPassword"
-                    />
-                    <View style={s.geminiBox}>
-                      <Text style={s.geminiTitle}>🔑 Clé API Gemini</Text>
-                      <Field label="" value={sApi} onChange={setSApi} placeholder="AIzaSy..." mono autoComplete="off" />
-                      <Text style={s.geminiNote}>Facultatif — active l'OCR intelligent</Text>
-                    </View>
-                    <View style={{ height: 8 }} />
-                    <TouchableOpacity style={[s.btn, loading && s.btnOff]} onPress={handleSignup} disabled={loading} activeOpacity={0.8}>
-                      <Text style={s.btnTxt}>{loading ? 'Création...' : 'Créer mon compte'}</Text>
-                    </TouchableOpacity>
-                  </>
-                )}
-              </View>
+                  <View style={{ height: 12 }} />
+                  <TouchableOpacity style={[s.btn, loading && s.btnOff]} onPress={handleLogin} disabled={loading} activeOpacity={0.8}>
+                    <Text style={s.btnTxt}>{loading ? 'Connexion...' : 'Se Connecter'}</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <Field
+                    label="Prénom & Nom" value={sName} onChange={setSName}
+                    placeholder="Paul Bocuse" capitalize="words"
+                    autoComplete="name" textContent="name"
+                  />
+                  <Field
+                    label="Adresse e-mail" value={sEmail} onChange={setSEmail}
+                    placeholder="exemple-chef@gmail.com" keyboard="email-address"
+                    autoComplete="email" textContent="emailAddress"
+                  />
+                  <Field
+                    label="Mot de passe (8 car. min.)" value={sPass} onChange={setSPass}
+                    placeholder="••••••••" secure
+                    autoComplete="new-password" textContent="newPassword"
+                  />
+                  <View style={s.geminiBox}>
+                    <Text style={s.geminiTitle}>🔑 Clé API Gemini</Text>
+                    <Field label="" value={sApi} onChange={setSApi} placeholder="AIzaSy..." mono autoComplete="off" />
+                    <Text style={s.geminiNote}>Facultatif — active l'OCR intelligent</Text>
+                  </View>
+                  <View style={{ height: 8 }} />
+                  <TouchableOpacity style={[s.btn, loading && s.btnOff]} onPress={handleSignup} disabled={loading} activeOpacity={0.8}>
+                    <Text style={s.btnTxt}>{loading ? 'Création...' : 'Créer mon compte'}</Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
           </View>
-        </TouchableWithoutFeedback>
-
-        <Animated.View style={{ height: keyboardPad }} />
-      </Animated.ScrollView>
+          <Animated.View style={{ height: keyboardPad }} />
+        </Animated.ScrollView>
+      </TouchableWithoutFeedback>
     </View>
   );
 }
 
+// --- STYLES ---
 const s = StyleSheet.create({
   root:       { flex: 1, backgroundColor: C.black },
   scroll: { flexGrow: 1, padding: 24, paddingTop: 52, backgroundColor: C.black, justifyContent: 'center' },
@@ -270,9 +304,9 @@ const s = StyleSheet.create({
   logoWrap: { alignItems: 'center', marginBottom: 28 },
   logoImg:  { width: 200, height: 200, marginBottom: 12 },
   tagline:  { fontFamily: 'Cinzel_400Regular', fontSize: 16, letterSpacing: 4, color: C.bronze, textTransform: 'uppercase', marginTop: 2 },
-  card:        { backgroundColor: C.charcoal, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(212,175,55,0.22)', overflow: 'hidden' },
+  card:         { backgroundColor: C.charcoal, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(212,175,55,0.22)', overflow: 'hidden' },
   cardTopLine: { height: 1, backgroundColor: C.gold, opacity: 0.5 },
-  tabs:          { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: 'rgba(212,175,55,0.12)' },
+  tabs:           { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: 'rgba(212,175,55,0.12)' },
   tab:          { flex: 1, paddingVertical: 15, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent', marginBottom: -1 },
   tabActive:    { borderBottomColor: C.gold },
   tabTxt:       { fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: C.muted },
@@ -281,21 +315,9 @@ const s = StyleSheet.create({
   fieldWrap:  { marginBottom: 18 },
   fieldLabel: { fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: C.mutedL, marginBottom: 8, fontWeight: '600' },
   input:      { backgroundColor: C.blackM, borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)', borderRadius: 8, padding: 14, color: C.cream, fontSize: 17, fontWeight: '500' },
-
-  forgotLink: {
-    alignSelf: 'flex-end',
-    marginTop: -4, 
-    paddingVertical: 8,
-  },
-  forgotLinkTxt: {
-    fontFamily: 'Cinzel_400Regular',
-    fontSize: 14,
-    letterSpacing: 1.5,
-    color: C.gold,
-    textDecorationLine: 'underline',
-  },
-
-  geminiBox:    { marginTop: 8, paddingTop: 16, borderTopWidth: 1, borderTopColor: 'rgba(212,175,55,0.1)' },
+  forgotLink: { alignSelf: 'flex-end', marginTop: -4, paddingVertical: 8 },
+  forgotLinkTxt: { fontFamily: 'Cinzel_400Regular', fontSize: 14, letterSpacing: 1.5, color: C.gold, textDecorationLine: 'underline' },
+  geminiBox:     { marginTop: 8, paddingTop: 16, borderTopWidth: 1, borderTopColor: 'rgba(212,175,55,0.1)' },
   geminiTitle: { fontFamily: 'Cinzel_400Regular', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: C.bronze, marginBottom: 10 },
   geminiNote:  { fontSize: 12, color: C.muted, fontStyle: 'italic', marginTop: 4 },
   btn:    { backgroundColor: C.gold, borderRadius: 8, padding: 16, alignItems: 'center', marginTop: 4 },

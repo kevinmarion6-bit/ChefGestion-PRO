@@ -2,6 +2,7 @@
 "expo": {
 "name": "ChefGestion PRO",
 "slug": "chefgestion-pro-dev",
+"scheme": "chef-gestion",
 "owner": "chefgestion-pro",
 "version": "1.0.0",
 "orientation": "portrait",

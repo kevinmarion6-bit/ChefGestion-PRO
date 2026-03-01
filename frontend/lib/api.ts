@@ -28,7 +28,8 @@ async function apiFetch<T>(
       signal: controller.signal,
       headers: {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        'Content-Type': 'application/json',
+        // Le Content-Type en JSON est mis UNIQUEMENT si ce n'est pas une image (FormData)
+        ...(!(options.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
         ...(options.headers || {}),
       },
     });
@@ -142,7 +143,12 @@ export interface Recipe {
 
 export const Auth = {
   async signup(name: string, email: string, password: string, apiKey = '') {
-    return apiFetch<{ token: string; user: UserPublic }>('/auth/signup', {
+    // On change le type de retour pour inclure confirmRequired
+    return apiFetch<{ 
+      token?: string; 
+      user?: UserPublic; 
+      confirmRequired?: boolean 
+    }>('/auth/signup', {
       method: 'POST',
       body: JSON.stringify({ name, email, password, apiKey }),
     });
@@ -311,9 +317,11 @@ export async function checkHealth() {
 
 async function uriToFormData(uri: string, fieldName: string): Promise<FormData> {
   const fd = new FormData();
+  const filename = uri.split('/').pop() || 'image.jpg'; // Récupère le vrai nom du fichier
+  
   (fd as any).append(fieldName, {
     uri,
-    name: 'image.jpg',
+    name: filename,
     type: 'image/jpeg',
   });
   return fd;
