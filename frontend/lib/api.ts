@@ -28,19 +28,25 @@ async function apiFetch<T>(
       signal: controller.signal,
       headers: {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        // Le Content-Type en JSON est mis UNIQUEMENT si ce n'est pas une image (FormData)
         ...(!(options.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
         ...(options.headers || {}),
       },
     });
 
-    const json = await res.json() as { ok: boolean; data?: T; error?: string };
+    const json = await res.json();
 
-    if (!json.ok) {
-      throw new ApiError(json.error ?? 'Erreur inconnue', res.status);
+    // LOG POUR DEBUG (À regarder dans ton terminal VS Code/Expo)
+    console.log(`[API RESPONSE] ${path}:`, json);
+
+    // Si le code HTTP est entre 200 et 299, c'est un succès !
+    if (res.ok || res.status === 201) {
+      // On renvoie soit json.data si ça existe, soit le json brut
+      return (json.data ? json.data : json) as T;
     }
 
-    return json.data as T;
+    // Sinon, on gère l'erreur
+    throw new ApiError(json.error || json.message || 'Erreur inconnue', res.status);
+
   } catch (err) {
     if (err instanceof ApiError) throw err;
     if ((err as Error).name === 'AbortError') {

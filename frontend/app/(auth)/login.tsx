@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { useApp } from '@/lib/context';
-import { ApiError } from '@/lib/api';
+import { ApiError, Auth } from '@/lib/api';
 import { isConfigured } from '@/lib/config';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -141,23 +141,41 @@ export default function LoginScreen() {
 
   async function handleSignup() {
     Keyboard.dismiss();
-    if (!sName || !sEmail || !sPass) { Alert.alert('Champs requis', 'Remplissez tous les champs.'); return; }
-    if (sPass.length < 8) { Alert.alert('Mot de passe', 'Minimum 8 caractères.'); return; }
+    if (!sName || !sEmail || !sPass) { 
+      Alert.alert('Champs requis', 'Remplissez tous les champs.'); 
+      return; 
+    }
+    if (sPass.length < 8) { 
+      Alert.alert('Mot de passe', 'Minimum 8 caractères.'); 
+      return; 
+    }
    
     setLoading(true);
     try {
-      // Cast "as any" pour éviter l'erreur TS sur confirmRequired
-      const result = await signup(sName, sEmail, sPass, sApi) as any;
+      // On appelle l'API
+      const result = await Auth.signup(sName, sEmail, sPass, sApi) as any;
       
-      if (result?.confirmRequired) {
+      console.log("Résultat reçu dans l'écran:", result);
+
+      // --- LE FIX EST ICI ---
+      // On vérifie si confirmRequired est vrai (soit à la racine, soit dans data)
+      if (result?.confirmRequired === true || result?.data?.confirmRequired === true) {
         setIsSubmitted(true);
         scrollRef.current?.scrollTo({ y: 0, animated: true });
-      } else {
+      } else if (result?.token || result?.data?.token) {
+        // Si pas de confirmation requise, on connecte direct
         router.replace('/(tabs)');
+      } else {
+        // Si on arrive ici, c'est qu'on a eu une réponse mais pas ce qu'on attendait
+        throw new Error("Réponse serveur incomplète");
       }
-    } catch (e) {
+
+    } catch (e: any) {
+      console.log("Erreur attrapée dans handleSignup:", e);
       Alert.alert('Erreur', e instanceof ApiError ? e.message : 'Inscription impossible.');
-    } finally { setLoading(false); }
+    } finally { 
+      setLoading(false); 
+    }
   }
 
   // --- RENDUS CONDITIONNELS ---

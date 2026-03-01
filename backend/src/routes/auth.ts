@@ -18,12 +18,14 @@ router.post('/signup', async (req: Request, res: Response) => {
   try {
     // Utilisation de signUp pour déclencher l'envoi du mail de confirmation
     const { data, error: signUpErr } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { name, api_key: apiKey },
-      },
-    });
+  email,
+  password,
+  options: {
+    data: { name, api_key: apiKey },
+    // On demande à Supabase de renvoyer vers le scheme de l'app
+    emailRedirectTo: 'chef-gestion://confirm' 
+  },
+});
 
     if (signUpErr) {
       const msg = signUpErr.message.toLowerCase().includes('already')
