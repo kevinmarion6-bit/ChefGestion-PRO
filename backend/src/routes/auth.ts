@@ -4,9 +4,10 @@ import { requireAuth, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
-// ─── SIGNUP ──────────────────────────────────────────────
+// ─── SIGNUP (Optimisé pour envoi mail) ───────────────────
 router.post('/signup', async (req: Request, res: Response) => {
   const { name, email, password, apiKey = '' } = req.body;
+
   if (!name || !email || !password) { 
     return res.status(400).json({ ok: false, error: 'Nom, e-mail et mot de passe requis' }); 
   }
@@ -15,30 +16,36 @@ router.post('/signup', async (req: Request, res: Response) => {
   }
 
   try {
-    const { data: created, error: createErr } = await supabase.auth.admin.createUser({
-      email, 
+    // Utilisation de signUp (méthode client) pour déclencher le SMTP Gmail
+    const { data, error: signUpErr } = await supabase.auth.signUp({
+      email,
       password,
-      email_confirm: true,
-      user_metadata: { name, api_key: apiKey },
+      options: {
+        data: { name, api_key: apiKey }, // Stocké dans user_metadata
+      },
     });
-    
-    if (createErr) {
-      const msg = createErr.message.toLowerCase().includes('already')
+
+    if (signUpErr) {
+      const msg = signUpErr.message.toLowerCase().includes('already')
         ? 'Un compte existe déjà avec cet e-mail'
-        : createErr.message;
+        : signUpErr.message;
       return res.status(409).json({ ok: false, error: msg });
     }
 
-    const { data: session, error: sessErr } = await supabase.auth.signInWithPassword({ email, password });
-    if (sessErr || !session.session) { 
-      return res.status(500).json({ ok: false, error: 'Compte créé mais connexion échouée' }); 
+    // Si data.session est null, c'est que la confirmation par mail est active dans Supabase
+    if (data.user && !data.session) {
+      return res.status(201).json({
+        ok: true,
+        confirmRequired: true,
+        message: 'Lien de confirmation envoyé par e-mail.'
+      });
     }
 
     res.status(201).json({
       ok: true,
       data: {
-        token: session.session.access_token,
-        user: { id: created.user!.id, name, email, apiKey },
+        token: data.session?.access_token,
+        user: { id: data.user?.id, name, email, apiKey },
       },
     });
   } catch (err) {
@@ -47,7 +54,7 @@ router.post('/signup', async (req: Request, res: Response) => {
   }
 });
 
-// ─── LOGIN ───────────────────────────────────────────────
+// ─── LOGIN (Avec check confirmation) ─────────────────────
 router.post('/login', async (req: Request, res: Response) => {
   const { email, password } = req.body;
   if (!email || !password) { 
@@ -56,10 +63,15 @@ router.post('/login', async (req: Request, res: Response) => {
 
   try {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error || !data.session) { 
+    
+    if (error) {
+      if (error.message.includes('Email not confirmed')) {
+        return res.status(403).json({ ok: false, error: 'Veuillez confirmer votre e-mail avant de vous connecter.' });
+      }
       return res.status(401).json({ ok: false, error: 'E-mail ou mot de passe incorrect' }); 
     }
 
+    // Récupération du profil (nom et api_key)
     const { data: profile } = await supabase
       .from('profiles').select('name, api_key').eq('id', data.user.id).single();
 
@@ -81,96 +93,46 @@ router.post('/login', async (req: Request, res: Response) => {
   }
 });
 
-// ─── FORGOT PASSWORD ─────────────────────────────────────
+// ─── FORGOT & RESET ──────────────────────────────────────
 router.post('/forgot-password', async (req: Request, res: Response) => {
   const { email } = req.body;
-  if (!email) { return res.status(400).json({ ok: false, error: 'E-mail requis' }); }
+  if (!email) return res.status(400).json({ ok: false, error: 'E-mail requis' });
 
   try {
-    // Demande à Supabase d'envoyer le code OTP (recovery)
     const { error } = await supabase.auth.resetPasswordForEmail(email);
-    
-    if (error) {
-      console.error('[Supabase Forgot] Error:', error.message);
-      return res.status(400).json({ ok: false, error: error.message });
-    }
-
-    res.json({ ok: true, data: { message: 'Code de récupération envoyé' } });
-  } catch (err) {
-    console.error('[/auth/forgot-password] Erreur:', err);
-    res.status(500).json({ ok: false, error: 'Erreur serveur' });
-  }
+    if (error) return res.status(400).json({ ok: false, error: error.message });
+    res.json({ ok: true, message: 'Code de récupération envoyé' });
+  } catch (err) { res.status(500).json({ ok: false, error: 'Erreur serveur' }); }
 });
 
-// ─── RESET PASSWORD (OPTIMISÉ) ───────────────────────────
 router.post('/reset-password', async (req: Request, res: Response) => {
   const { email, token, password } = req.body; 
-  
-  if (!email || !token || !password) { 
-    return res.status(400).json({ ok: false, error: 'E-mail, code et nouveau mot de passe requis' }); 
-  }
+  if (!email || !token || !password) return res.status(400).json({ ok: false, error: 'Données manquantes' });
 
   try {
-    // 1. On vérifie le code OTP pour cet email précis
-    const { data, error: verifyErr } = await supabase.auth.verifyOtp({
-      email,
-      token,
-      type: 'recovery' // Obligatoire pour le reset password
-    });
+    const { data, error: verifyErr } = await supabase.auth.verifyOtp({ email, token, type: 'recovery' });
+    if (verifyErr || !data.user) return res.status(400).json({ ok: false, error: 'Code invalide ou expiré' });
 
-    if (verifyErr || !data.user) { 
-      console.error('[OTP Verify Error] Email:', email, 'Error:', verifyErr?.message);
-      return res.status(400).json({ ok: false, error: 'Code invalide ou expiré' }); 
-    }
+    const { error: updateErr } = await supabase.auth.admin.updateUserById(data.user.id, { password });
+    if (updateErr) return res.status(500).json({ ok: false, error: 'Échec de la mise à jour' });
 
-    // 2. On met à jour le mot de passe via l'Admin API pour plus de fiabilité
-    const { error: updateErr } = await supabase.auth.admin.updateUserById(
-      data.user.id, 
-      { password }
-    );
-    
-    if (updateErr) {
-      console.error('[Update Password Error]', updateErr.message);
-      return res.status(500).json({ ok: false, error: 'Échec de la mise à jour du mot de passe' });
-    }
-
-    res.json({ ok: true, data: { ok: true, message: 'Mot de passe mis à jour' } });
-  } catch (err: any) {
-    console.error('[/auth/reset-password] Erreur:', err);
-    res.status(500).json({ ok: false, error: 'Erreur serveur interne' });
-  }
+    res.json({ ok: true, message: 'Mot de passe mis à jour' });
+  } catch (err) { res.status(500).json({ ok: false, error: 'Erreur serveur' }); }
 });
 
 // ─── ME & API KEY ────────────────────────────────────────
 router.get('/me', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const [{ data: profile }, { data: userInfo }] = await Promise.all([
-      supabase.from('profiles').select('name, api_key').eq('id', req.userId!).single(),
-      supabase.auth.admin.getUserById(req.userId!),
-    ]);
-    if (!profile) { return res.status(404).json({ ok: false, error: 'Profil introuvable' }); }
-    
-    res.json({ 
-      ok: true, 
-      data: { 
-        id: req.userId, 
-        name: profile.name, 
-        email: userInfo?.user?.email ?? '', 
-        apiKey: profile.api_key ?? '' 
-      } 
-    });
-  } catch (err) { 
-    res.status(500).json({ ok: false, error: 'Erreur serveur' }); 
-  }
+    const { data: profile } = await supabase.from('profiles').select('*').eq('id', req.userId!).single();
+    if (!profile) return res.status(404).json({ ok: false, error: 'Profil introuvable' });
+    res.json({ ok: true, data: profile });
+  } catch (err) { res.status(500).json({ ok: false, error: 'Erreur serveur' }); }
 });
 
 router.patch('/apikey', requireAuth, async (req: AuthRequest, res: Response) => {
   const { apiKey } = req.body;
-  if (typeof apiKey !== 'string') { return res.status(400).json({ ok: false, error: 'apiKey requis' }); }
-  
   const { error } = await supabase.from('profiles').update({ api_key: apiKey }).eq('id', req.userId!);
-  if (error) { return res.status(500).json({ ok: false, error: error.message }); }
-  
+  if (error) return res.status(500).json({ ok: false, error: error.message });
   res.json({ ok: true, data: { apiKey } });
 });
 
