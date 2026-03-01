@@ -3,6 +3,7 @@ import { supabase } from '../services/supabase';
 import { requireAuth, AuthRequest } from '../middleware/auth';
 
 const router = Router();
+const REDIRECT_URL = process.env.AUTH_REDIRECT_URL || 'https://auth.expo.fyi';
 
 // ─── SIGNUP (Optimisé pour envoi mail) ───────────────────
 router.post('/signup', async (req: Request, res: Response) => {
@@ -22,8 +23,8 @@ router.post('/signup', async (req: Request, res: Response) => {
   password,
   options: {
     data: { name, api_key: apiKey },
-    // On demande à Supabase de renvoyer vers le scheme de l'app
-    emailRedirectTo: 'chef-gestion://confirm' 
+    // On remplace la chaîne fixe par la variable dynamique
+    emailRedirectTo: REDIRECT_URL 
   },
 });
 
