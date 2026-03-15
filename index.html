@@ -2,21 +2,46 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Inscription Confirmée - ChefGestion PRO</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Bienvenue Chef ! — ChefGestion Pro</title>
     <style>
-        body { background: #000; color: #D4AF37; font-family: 'Cinzel', serif; text-align: center; padding: 50px; }
-        .card { border: 1px solid #D4AF37; padding: 40px; border-radius: 15px; display: inline-block; background: #1A1A1A; }
-        h1 { letter-spacing: 3px; }
-        p { color: #F5F5DC; font-size: 1.2em; }
-        .button { display: inline-block; margin-top: 20px; padding: 10px 20px; background: #D4AF37; color: #000; text-decoration: none; font-weight: bold; border-radius: 5px; }
+        body { margin: 0; padding: 0; background-color: #000000; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+        .container { width: 90%; max-width: 600px; background-color: #141414; border-radius: 12px; overflow: hidden; border: 1px solid #2a2a2a; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
+        .header { background: linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%); padding: 48px 40px; border-bottom: 1px solid #2a2a2a; }
+        .logo { width: 110px; border-radius: 16px; margin-bottom: 28px; }
+        .brand { margin-bottom: 16px; }
+        .brand-gold { font-size: 13px; letter-spacing: 4px; color: #c9a84c; text-transform: uppercase; font-weight: 600; }
+        .brand-white { font-size: 13px; letter-spacing: 4px; color: #ffffff; text-transform: uppercase; font-weight: 600; }
+        h1 { margin: 0; font-size: 26px; color: #ffffff; font-weight: 300; letter-spacing: 2px; }
+        .content { padding: 48px 48px; }
+        p { color: #aaaaaa; font-size: 16px; line-height: 1.8; margin: 0 0 32px; }
+        .btn { display: inline-block; background: linear-gradient(135deg, #c9a84c, #e8c97a); color: #0a0a0a; text-decoration: none; font-size: 14px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; padding: 18px 48px; border-radius: 4px; transition: transform 0.2s; }
+        .btn:hover { transform: scale(1.05); }
+        .footer { background-color: #0d0d0d; padding: 28px 40px; border-top: 1px solid #2a2a2a; }
+        .footer-text { margin: 0; color: #444444; font-size: 12px; letter-spacing: 1px; }
     </style>
 </head>
 <body>
-    <div class="card">
-        <h1>FÉLICITATIONS CHEF !</h1>
-        <p>Votre compte est désormais actif.</p>
-        <p>Retournez dans l'application <strong>ChefGestion PRO</strong><br>pour vous connecter.</p>
-        <div class="button">BON SERVICE !</div>
+    <div class="container">
+        <div class="header">
+            <img src="https://osnckjlgqqawcgduideb.supabase.co/storage/v1/object/public/assets/logo.png" alt="Logo" class="logo">
+            <div class="brand">
+                <span class="brand-gold">✦ Chef </span>
+                <span class="brand-white">Gestion</span>
+                <span class="brand-gold"> Pro ✦</span>
+            </div>
+            <h1>Compte Activé !</h1>
+        </div>
+        <div class="content">
+            <p>
+                Félicitations Chef ! Votre accès est désormais validé.<br>
+                La révolution de votre gestion commence maintenant.
+            </p>
+            <a href="#" onclick="window.close();" class="btn">✦ Retourner sur l'App</a>
+        </div>
+        <div class="footer">
+            <p class="footer-text">© 2026 ChefGestion Pro — Excellence en Cuisine</p>
+        </div>
     </div>
 </body>
 </html>
