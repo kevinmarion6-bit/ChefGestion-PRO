@@ -24,24 +24,58 @@ export default function HaccpScreen() {
     fetchLogs();
   }, []);
 
-  const fetchLogs = async () => {
-    setLoading(true);
-    try {
-      const token = await getToken();
-      if (!token) return;
+  // 1. Dans fetchLogs(), trie les données par frigo
+const fetchLogs = async () => {
+  setLoading(true);
+  try {
+    const token = await getToken();
+    if (!token) return;
 
-      const response = await fetch(`${API_URL}/api/scan/haccp-logs?year=${now.getFullYear()}&month=${(now.getMonth() + 1).toString().padStart(2, '0')}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      const json = await response.json();
-      if (json.ok) setLogs(json.data);
-    } catch (err) {
-      console.error("Erreur Fetch HACCP:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    const response = await fetch(
+      `${API_URL}/api/scan/haccp-logs?year=${now.getFullYear()}&month=${(now.getMonth() + 1).toString().padStart(2, '0')}`,
+      { headers: { 'Authorization': `Bearer ${token}` } }
+    );
+    
+    const json = await response.json();
+    if (json.ok) setLogs(json.data);
+  } catch (err) {
+    console.error("Erreur Fetch HACCP:", err);
+  } finally {
+    setLoading(false);
+  }
+};
+
+// 2. Groupe les logs par frigo pour l'affichage :
+// Utilise cette fonction dans ton render :
+function getLogsByFridge() {
+  const grouped: Record<string, any[]> = {};
+  
+  for (const log of logs) {
+    const key = log.fridge_nom || 'Sans équipement';
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(log);
+  }
+  
+  return grouped;
+}
+
+// 3. Dans le rendu, affiche une section par frigo :
+const grouped = getLogsByFridge();
+
+return (
+  // ... ton header existant ...
+  <ScrollView>
+    {Object.entries(grouped).map(([fridgeName, fridgeLogs]) => (
+      <View key={fridgeName} style={{ marginBottom: 20 }}>
+        <Text style={{ color: '#D4AF37', fontSize: 13, fontFamily: 'Cinzel_700Bold', 
+                       paddingHorizontal: 16, paddingVertical: 8, letterSpacing: 1 }}>
+          {fridgeName.includes('Congél') || fridgeName.includes('congél') ? '🧊' : '❄️'} {fridgeName.toUpperCase()}
+        </Text>
+        {/* ... ton tableau existant, filtré sur fridgeLogs ... */}
+      </View>
+    ))}
+  </ScrollView>
+);
 
   // Fonction pour ouvrir la saisie
   const openInput = (date: string, periode: string, currentVal: string) => {

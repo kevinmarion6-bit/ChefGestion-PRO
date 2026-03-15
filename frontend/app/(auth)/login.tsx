@@ -140,43 +140,52 @@ export default function LoginScreen() {
   }
 
   async function handleSignup() {
-    Keyboard.dismiss();
-    if (!sName || !sEmail || !sPass) { 
-      Alert.alert('Champs requis', 'Remplissez tous les champs.'); 
-      return; 
-    }
-    if (sPass.length < 8) { 
-      Alert.alert('Mot de passe', 'Minimum 8 caractères.'); 
-      return; 
-    }
-   
-    setLoading(true);
-    try {
-      // On appelle l'API
-      const result = await Auth.signup(sName, sEmail, sPass, sApi) as any;
-      
-      console.log("Résultat reçu dans l'écran:", result);
-
-      // --- LE FIX EST ICI ---
-      // On vérifie si confirmRequired est vrai (soit à la racine, soit dans data)
-      if (result?.confirmRequired === true || result?.data?.confirmRequired === true) {
-        setIsSubmitted(true);
-        scrollRef.current?.scrollTo({ y: 0, animated: true });
-      } else if (result?.token || result?.data?.token) {
-        // Si pas de confirmation requise, on connecte direct
-        router.replace('/(tabs)');
-      } else {
-        // Si on arrive ici, c'est qu'on a eu une réponse mais pas ce qu'on attendait
-        throw new Error("Réponse serveur incomplète");
-      }
-
-    } catch (e: any) {
-      console.log("Erreur attrapée dans handleSignup:", e);
-      Alert.alert('Erreur', e instanceof ApiError ? e.message : 'Inscription impossible.');
-    } finally { 
-      setLoading(false); 
-    }
+  Keyboard.dismiss();
+  if (!sName || !sEmail || !sPass) { 
+    Alert.alert('Champs requis', 'Remplissez tous les champs.'); 
+    return; 
   }
+  
+  setLoading(true);
+  try {
+    // On type la réponse pour éviter les erreurs de "any"
+    const result = await Auth.signup(sName, sEmail, sPass, sApi) as any;
+    
+    console.log("DEBUG - Résultat Inscription:", JSON.stringify(result, null, 2));
+
+    // 1. Cas confirmation mail active
+    if (result?.confirmRequired) {
+      setIsSubmitted(true);
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+      return;
+    }
+
+    // 2. Cas confirmation OFF (on récupère le token)
+    const token = result?.token || result?.data?.session?.access_token;
+    const u = result?.user || result?.data?.user;
+
+    if (token && u) {
+      console.log("Token reçu, mise à jour du contexte...");
+      // 1. On met à jour le contexte avec l'utilisateur
+      await login(sEmail, sPass); 
+      // 2. SURTOUT : On ne fait pas de router.replace ici ! 
+      // Le NavigationGuard dans _layout.tsx s'en chargera tout seul 
+      // dès qu'il verra que 'user' n'est plus nul.
+    }
+    
+    else {
+      // Si pas de token direct, on tente le login manuel auto
+      console.log("Tentative de login automatique...");
+      await login(sEmail, sPass);
+    }
+
+  } catch (e: any) {
+    console.error("Erreur Inscription:", e);
+    Alert.alert('Erreur', e instanceof ApiError ? e.message : 'Inscription impossible.');
+  } finally { 
+    setLoading(false); 
+  }
+}
 
   // --- RENDUS CONDITIONNELS ---
 

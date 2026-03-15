@@ -1,11 +1,13 @@
-import React, { useState, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Image, StyleSheet, Alert, Modal, ActivityIndicator, useWindowDimensions } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, Image, StyleSheet,TextInput, Alert, Modal, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { Scan } from '@/lib/api';
 import { useApp } from '@/lib/context';
+import { getToken } from '@/lib/auth';
+
 
 const C = { 
   blackS: '#0C0C0C', charcoal: '#1A1A1A', 
@@ -28,6 +30,9 @@ export default function ScannerScreen() {
   const { refreshDashboard } = useApp();
   const { width: winWidth, height: winHeight } = useWindowDimensions();
   const FRAME_WIDTH = winWidth * 0.85;
+  const [fridges, setFridges] = useState<any[]>([]);
+  const [selectedFridgeId, setSelectedFridgeId] = useState<string | null>(null);
+  const [showFridgePicker, setShowFridgePicker] = useState(false);
 
   const [scanType, setScanType]     = useState<ScanType>('factures');
   const [loading, setLoading]       = useState(false);
@@ -49,6 +54,22 @@ export default function ScannerScreen() {
       pickImage();
     }
   }
+
+useEffect(() => {
+  async function loadFridges() {
+    try {
+      const token = await getToken();
+      const res = await fetch('https://chefgestion-pro.onrender.com/api/fridges', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      if (json.ok) setFridges(json.data);
+    } catch (e) {
+      console.error('[Frigos]', e);
+    }
+  }
+  loadFridges();
+}, []);
 
   async function takeAndCropPicture() {
     if (!cameraRef.current) return;
@@ -135,8 +156,19 @@ export default function ScannerScreen() {
         setResult({ type: 'factures', ...data });
         await refreshDashboard();
       } else if (scanType === 'temperature') {
-        const data = await Scan.temperature(uri);
-        setResult({ type: 'temperature', data });
+  const token = await getToken();
+  const fd = new FormData();
+  fd.append('image', { uri, name: 'photo.jpg', type: 'image/jpeg' } as any);
+  if (selectedFridgeId) fd.append('fridge_id', selectedFridgeId);
+
+  const response = await fetch('https://chefgestion-pro.onrender.com/api/scan/temperature', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: fd,
+  });
+  const json = await response.json();
+  if (!json.ok) throw new Error(json.error ?? 'Lecture impossible');
+  setResult({ type: 'temperature', data: json.data });
       } else if (scanType === 'carte') {
         const data = await Scan.carte(uri);
         setResult({ type: 'carte', data });
@@ -221,6 +253,44 @@ export default function ScannerScreen() {
             </TouchableOpacity>
           ))}
         </View>
+{/* ─── SÉLECTEUR DE FRIGO ─── */}
+{scanType === 'temperature' && fridges.length > 0 && (
+  <View style={{ marginBottom: 12 }}>
+    <Text style={{ color: '#9A8060', fontSize: 10, fontFamily: 'Cinzel_700Bold', 
+                   letterSpacing: 1, marginBottom: 8, textAlign: 'center' }}>
+      📍 ÉQUIPEMENT SCANNÉ
+    </Text>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} 
+                contentContainerStyle={{ gap: 8, paddingHorizontal: 4 }}>
+      {fridges.map((f: any) => (
+        <TouchableOpacity
+          key={f.id}
+          style={{
+            paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20,
+            backgroundColor: selectedFridgeId === f.id ? '#D4AF37' : 'rgba(212,175,55,0.1)',
+            borderWidth: 1,
+            borderColor: selectedFridgeId === f.id ? '#D4AF37' : 'rgba(212,175,55,0.3)',
+            alignItems: 'center', minWidth: 100,
+          }}
+          onPress={() => setSelectedFridgeId(selectedFridgeId === f.id ? null : f.id)}
+        >
+          <Text style={{ fontSize: 18 }}>{f.type === 'negatif' ? '🧊' : '❄️'}</Text>
+          <Text style={{
+            color: selectedFridgeId === f.id ? '#000' : '#D4AF37',
+            fontSize: 10, fontWeight: 'bold', marginTop: 4, textAlign: 'center'
+          }}>
+            {f.nom}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </ScrollView>
+    {!selectedFridgeId && (
+      <Text style={{ color: '#666', fontSize: 10, textAlign: 'center', marginTop: 6 }}>
+        Sélectionne un équipement avant de scanner
+      </Text>
+    )}
+  </View>
+)}
 
        <TouchableOpacity style={s.drop} onPress={handleMainPress}>
   <Text style={{ fontSize: 32 }}>📸</Text>
@@ -248,57 +318,146 @@ export default function ScannerScreen() {
   );
 }
 
-function ScanResult({ result }: { result: any }) {
+function ScanResult({ result, onTemperatureValidated }: { result: any, onTemperatureValidated?: (temp: number) => void }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [manualTemp, setManualTemp] = useState('');
+  const [savedTemp, setSavedTemp] = useState<number | null>(null);
+
   if (result.type === 'temperature') {
-    const t = result.data?.temperature ?? 0;
+    const rawTemp = result.data?.temperature ?? 0;
+    const displayTemp = savedTemp !== null ? savedTemp : rawTemp; // Affiche la valeur corrigée si elle existe
     const score = result.data?.confiance ?? 0;
 
-    // 1. Couleur de la température (HACCP)
-    const tempColor = t <= 4 ? '#4ADE80' : t <= 6 ? '#FACC15' : '#F87171';
-
-    // 2. Couleur de la confiance (Ta nouvelle logique)
-    // Vert >= 75%, Orange >= 65%, Rouge < 65%
+    const tempColor = displayTemp <= 4 ? '#4ADE80' : displayTemp <= 6 ? '#FACC15' : '#F87171';
     const scoreColor = score >= 75 ? '#4ADE80' : score >= 65 ? '#FACC15' : '#F87171';
-    
-    // Libellé d'état pour le Chef
     const scoreLabel = score >= 75 ? 'FIABLE' : score >= 65 ? 'À VÉRIFIER' : 'INCERTAIN';
+
+    // Fonction pour sauvegarder la correction
+    async function handleSaveManual() {
+      const val = parseFloat(manualTemp.replace(',', '.'));
+      if (isNaN(val) || val < -40 || val > 70) {
+        Alert.alert('Valeur invalide', 'Entre une température entre -40 et 70°C');
+        return;
+      }
+      setSavedTemp(val);
+      setIsEditing(false);
+      
+      // Notifie le composant parent (pour l'enregistrement HACCP)
+      if (onTemperatureValidated) {
+        onTemperatureValidated(val);
+      }
+      
+      Alert.alert('✅ Corrigé', `Température corrigée à ${val}°C`);
+    }
 
     return (
       <View style={sr.card}>
         <Text style={sr.title}>TEMPÉRATURE RELEVÉE</Text>
         
-        <Text style={[sr.tempBig, { color: tempColor }]}>{t}°C</Text>
+        <Text style={[sr.tempBig, { color: tempColor }]}>{displayTemp}°C</Text>
+        
+        {/* Indicateur si la valeur a été corrigée manuellement */}
+        {savedTemp !== null && (
+          <Text style={{ color: '#6B6050', fontSize: 9, textAlign: 'center', marginTop: -8 }}>
+            ✏️ VALEUR CORRIGÉE MANUELLEMENT
+          </Text>
+        )}
         
         <View style={{ alignItems: 'center', marginTop: 15 }}>
           <Text style={{ color: '#6B6050', fontSize: 10, fontFamily: 'Cinzel_700Bold', marginBottom: 4 }}>
             INDICE DE CONFIANCE
           </Text>
-          
-          <Text style={{ color: scoreColor, fontSize: 24, fontWeight: 'bold' }}>
-            {score}%
-          </Text>
-          
+          <Text style={{ color: scoreColor, fontSize: 24, fontWeight: 'bold' }}>{score}%</Text>
           <Text style={{ color: scoreColor, fontSize: 10, fontFamily: 'Cinzel_700Bold', letterSpacing: 1 }}>
             {scoreLabel}
           </Text>
         </View>
 
-        <Text style={{ color: '#444', fontSize: 10, marginTop: 15 }}>
-          Lecteur : {result.data?.type_afficheur ?? 'Standard'}
+        <Text style={{ color: '#444', fontSize: 10, marginTop: 15, textAlign: 'center' }}>
+          Lecteur : {result.data?.type_afficheur ?? 'Inconnu'}
         </Text>
 
-        {result.data?.erreur && (
-          <Text style={{ color: '#F87171', fontSize: 11, marginTop: 5 }}>{result.data.erreur}</Text>
-        )}
+        {/* ─── ZONE DE CORRECTION MANUELLE ─── */}
+        <View style={{ marginTop: 20, borderTopWidth: 1, borderTopColor: 'rgba(212,175,55,0.2)', paddingTop: 16 }}>
+          
+          {!isEditing ? (
+            // Bouton pour ouvrir la saisie
+            <TouchableOpacity
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: 'rgba(212,175,55,0.1)',
+                borderWidth: 1,
+                borderColor: 'rgba(212,175,55,0.3)',
+                borderRadius: 8,
+                paddingVertical: 10,
+                paddingHorizontal: 20,
+                gap: 8,
+              }}
+              onPress={() => {
+                setManualTemp(String(displayTemp));
+                setIsEditing(true);
+              }}
+            >
+              <Text style={{ fontSize: 16 }}>✏️</Text>
+              <Text style={{ color: '#D4AF37', fontSize: 12, fontFamily: 'Cinzel_700Bold', letterSpacing: 1 }}>
+                CORRIGER LA VALEUR
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            // Formulaire de saisie manuelle
+            <View style={{ gap: 10 }}>
+              <Text style={{ color: '#9A8060', fontSize: 11, textAlign: 'center', letterSpacing: 1 }}>
+                SAISIR LA TEMPÉRATURE CORRECTE
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+                <TextInput
+                  style={{
+                    flex: 1,
+                    backgroundColor: '#111',
+                    borderWidth: 1,
+                    borderColor: '#D4AF37',
+                    borderRadius: 8,
+                    color: '#fff',
+                    fontSize: 24,
+                    textAlign: 'center',
+                    paddingVertical: 10,
+                    fontWeight: 'bold',
+                  }}
+                  value={manualTemp}
+                  onChangeText={setManualTemp}
+                  keyboardType="numbers-and-punctuation"
+                  placeholder="-18"
+                  placeholderTextColor="#444"
+                  autoFocus
+                />
+                <Text style={{ color: '#D4AF37', fontSize: 24, fontWeight: 'bold' }}>°C</Text>
+              </View>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity
+                  style={{ flex: 1, backgroundColor: '#1a1a1a', borderRadius: 8, paddingVertical: 12, alignItems: 'center' }}
+                  onPress={() => setIsEditing(false)}
+                >
+                  <Text style={{ color: '#666', fontSize: 12 }}>ANNULER</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ flex: 2, backgroundColor: '#D4AF37', borderRadius: 8, paddingVertical: 12, alignItems: 'center' }}
+                  onPress={handleSaveManual}
+                >
+                  <Text style={{ color: '#000', fontSize: 12, fontWeight: 'bold' }}>✅ VALIDER</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </View>
+        {/* ─── FIN CORRECTION MANUELLE ─── */}
+        
       </View>
     );
   }
-  
-  return (
-    <View style={sr.card}>
-      <Text style={sr.title}>ANALYSE TERMINÉE ✅</Text>
-    </View>
-  );
+
+  return null;
 }
 
 const s = StyleSheet.create({

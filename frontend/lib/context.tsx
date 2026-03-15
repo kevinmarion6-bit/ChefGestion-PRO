@@ -84,11 +84,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signup = useCallback(async (name: string, email: string, password: string, apiKey = '') => {
-    const { token, user: u } = await Auth.signup(name, email, password, apiKey);
-    await saveToken(token);
-    await saveUser(u);
-    setUserState(u);
-  }, []);
+  try {
+    const response = await Auth.signup(name, email, password, apiKey) as any;
+    
+    // On extrait le token et l'user peu importe où ils sont cachés (data ou racine)
+    const token = response?.token || response?.data?.session?.access_token || response?.data?.token;
+    const userData = response?.user || response?.data?.user;
+
+    // Si on a un token et un user, on connecte direct (Confirmation OFF)
+    if (token && userData) {
+      await saveToken(token);
+      await saveUser(userData);
+      setUserState(userData);
+      return;
+    }
+
+    // Si on n'a pas de token mais que c'est un succès (Confirmation ON)
+    // On ne fait rien ici, Login.tsx s'occupera d'afficher l'écran "Vérifie tes mails"
+    console.log("Inscription réussie, attente de confirmation mail...");
+    
+  } catch (error) {
+    throw error; // On laisse l'écran Login gérer l'alerte
+  }
+}, []);
 
   // FONCTION AJOUTÉE ICI
   const requestPasswordReset = useCallback(async (email: string) => {

@@ -143,36 +143,49 @@ router.post('/temperature', requireAuth, upload.single('image'), async (req: Aut
       return res.status(429).json({ ok: false, error: 'Quota Google Vision atteint (33/33).' });
     }
 
-    // --- ÉTAPE 1 : MONTAGE ULTRA-LISIBILITÉ (Multi-couleurs : Rouge, Bleu, Blanc) ---
-    const baseImg = sharp(req.file.buffer).resize(1000);
-    const metadata = await baseImg.metadata();
-    const h = metadata.height || 600;
+    // --- ÉTAPE 1 : MONTAGE MULTI-TRAITEMENTS ---
+const baseImg = sharp(req.file.buffer).resize(1000);
+const metadata = await baseImg.metadata();
+const h = metadata.height || 600;
+const w = metadata.width || 600;
 
-    // Version A : Négatif + Seuil (Idéal pour Vision, transforme tout en noir sur blanc)
-    const thresholdLayer = await sharp(req.file.buffer)
-      .resize(1000)
-      .grayscale()
-      .negate() 
-      .threshold(160) // Ajuste entre 150 et 180 si besoin selon la luminosité de tes LED
-      .toBuffer();
+// Version A : Négatif + Seuil (idéal pour LED rouge/orange sur fond noir)
+const thresholdLayer = await sharp(req.file.buffer)
+  .resize(1000)
+  .grayscale()
+  .negate()
+  .threshold(140) // Légèrement abaissé pour capturer les segments pâles
+  .toBuffer();
 
-    // Version B : Contraste Linéaire (Garde les nuances pour le point décimal)
-    const contrastLayer = await sharp(req.file.buffer)
-      .resize(1000)
-      .grayscale()
-      .linear(2.0, -50) // On force le trait pour détacher le chiffre du fond noir
-      .toBuffer();
+// Version B : Contraste fort (pour LED bleue/blanche)
+const contrastLayer = await sharp(req.file.buffer)
+  .resize(1000)
+  .grayscale()
+  .linear(2.5, -80) // Contraste encore plus fort
+  .toBuffer();
 
-    const compositeBuffer = await baseImg
-      .extend({
-        bottom: h * 2,
-        background: { r: 255, g: 255, b: 255, alpha: 1 }
-      })
-      .composite([
-        { input: thresholdLayer, top: h, left: 0 },
-        { input: contrastLayer, top: h * 2, left: 0 }
-      ])
-      .toBuffer();
+// Version C : NOUVEAU - Extraction du signe moins (bord gauche agrandi)
+// On découpe et agrandit le tiers gauche pour aider à détecter le "-"
+const leftCrop = await sharp(req.file.buffer)
+  .resize(1000)
+  .extract({ left: 0, top: 0, width: Math.floor(w * 0.35), height: h })
+  .resize(400, h) // On agrandit ce morceau pour le rendre plus lisible
+  .grayscale()
+  .negate()
+  .threshold(120)
+  .toBuffer();
+
+const compositeBuffer = await baseImg
+  .extend({
+    bottom: h * 3,
+    background: { r: 255, g: 255, b: 255, alpha: 1 }
+  })
+  .composite([
+    { input: thresholdLayer, top: h, left: 0 },
+    { input: contrastLayer, top: h * 2, left: 0 },
+    { input: leftCrop, top: h * 3, left: 0 },
+  ])
+  .toBuffer();
       
     // --- ÉTAPE 2 : APPEL VISION ---
     const visionKey = getVisionApiKey();
@@ -185,30 +198,61 @@ router.post('/temperature', requireAuth, upload.single('image'), async (req: Aut
     let confidence = 95;
     let method = 'Google Vision (Montage Hybride)';
 
-    // --- ÉTAPE 3 : LOGIQUE DE PARSING UNIQUE ---
-    const normalized = rawText
-      .replace(/,/g, '.')
-      .replace(/(\d)\s+(\d)/g, '$1.$2') // Répare "20 0" en "20.0"
-      .replace(/[°℃]/g, '')
-      .replace(/[^0-9.-]/g, ' ')
-      .trim();
+    // --- ÉTAPE 3 : LOGIQUE DE PARSING AMÉLIORÉE ---
+const normalized = rawText
+  .replace(/,/g, '.')
+  .replace(/[°℃]/g, '')
+  // Répare "2 0" ou "1 8" → "2.0" ou "1.8" (espace entre chiffres = souvent un point décimal)
+  .replace(/(\d)\s+(\d)/g, '$1.$2')
+  .trim();
 
-    const matches = normalized.match(/-?\d+\.\d+|-?\d+/g) ?? [];
+console.log('[Parsing] Texte normalisé :', normalized);
 
-    const candidates = matches
-      .map(m => {
-        let v = m;
-        const digitsOnly = v.replace('-', '').replace('.', '');
-        // Correction automatique : 285 -> 28.5
-        if (digitsOnly.length === 3 && !v.includes('.')) {
-          v = v.slice(0, -1) + '.' + v.slice(-1);
-        }
-        return parseFloat(v);
-      })
-      .filter(n => !isNaN(n) && n >= -40 && n <= 70);
+// ✅ CORRECTION CLÉE : "-018" → "-18" (zéro parasite après le signe moins)
+const cleanedForParsing = normalized
+  .replace(/-\s*0+(\d+)/g, '-$1')  // "-018" → "-18", "-007" → "-7"
+  .replace(/[^0-9.\-]/g, ' ')      // Garde chiffres, point, et signe moins
+  .trim();
 
-    // Priorité aux nombres décimaux
-    temperature = candidates.find(n => !Number.isInteger(n)) ?? candidates[0] ?? null;
+console.log('[Parsing] Après nettoyage :', cleanedForParsing);
+
+const matches = cleanedForParsing.match(/-?\d+\.\d+|-?\d+/g) ?? [];
+
+const candidates = matches
+  .map(m => {
+    let v = m;
+    const isNeg = v.startsWith('-');
+    const digitsOnly = v.replace('-', '').replace('.', '');
+    
+    // ✅ Correction 3 chiffres : SEULEMENT si les 3 chiffres semblent être X.Y
+    // Ex: "185" → "18.5" mais PAS "230" → "23.0" (les multiples de 10 restent entiers)
+    if (digitsOnly.length === 3 && !v.includes('.')) {
+      const lastDigit = parseInt(digitsOnly[2]);
+      const firstTwo = parseInt(digitsOnly.substring(0, 2));
+      // On ajoute le point seulement si ça donne une temp plausible
+      const withDecimal = parseFloat((isNeg ? '-' : '') + digitsOnly.substring(0, 2) + '.' + digitsOnly[2]);
+      const withoutDecimal = parseFloat(v);
+      
+      // Priorité au nombre entier s'il est dans la plage "température ambiante ou frigo"
+      if (withoutDecimal >= 10 && withoutDecimal <= 35) {
+        v = String(withoutDecimal); // Garde "23" comme 23, pas "2.3"
+      } else if (!isNaN(withDecimal) && withDecimal >= -40 && withDecimal <= 70) {
+        v = String(withDecimal); // "185" → "18.5" pour les cas frigo/congélateur
+      }
+    }
+    
+    return parseFloat(v);
+  })
+  .filter(n => !isNaN(n) && n >= -40 && n <= 70);
+
+console.log('[Parsing] Candidats valides :', candidates);
+
+// Priorité : 1) Négatifs (congélateurs) 2) Décimaux 3) Entiers
+const negatives = candidates.filter(n => n < 0);
+const decimals = candidates.filter(n => !Number.isInteger(n) && n >= 0);
+const integers = candidates.filter(n => Number.isInteger(n) && n >= 0);
+
+temperature = negatives[0] ?? decimals[0] ?? integers[0] ?? null;
 
     // --- ÉTAPE 4 : FALLBACK GEMINI (Si Vision a échoué) ---
     if (temperature === null) {
@@ -231,10 +275,14 @@ router.post('/temperature', requireAuth, upload.single('image'), async (req: Aut
     }
 
     // --- ÉTAPE 5 : MISE À JOUR QUOTA & ENREGISTREMENT ---
-    await supabase.from('profiles')
-      .update({ vision_scans_today: currentScans + 1, last_vision_reset: today })
-      .eq('id', userId);
+    // Récupère le fridge_id depuis le body (envoyé par le frontend)
+const { fridge_id } = req.body; // Nouveau champ optionnel
 
+await supabase.from('profiles')
+  .update({ vision_scans_today: currentScans + 1, last_vision_reset: today })
+  .eq('id', userId);
+
+// Calcul de la date et de la période de service
     const now = new Date();
     const currentHour = now.getHours();
     let serviceDate = new Date(now);
@@ -248,19 +296,31 @@ router.post('/temperature', requireAuth, upload.single('image'), async (req: Aut
         serviceDate.setDate(serviceDate.getDate() - 1);
       }
     }
-
     const dateString = serviceDate.toISOString().split('T')[0];
+  
+// Récupère le nom du frigo si fourni
+let fridge_nom = '';
+if (fridge_id) {
+  const { data: fridge } = await supabase
+    .from('fridges')
+    .select('nom')
+    .eq('id', fridge_id)
+    .single();
+  fridge_nom = fridge?.nom ?? '';
+}
 
-    await supabase
-      .from('temperature_logs')
-      .upsert({
-        user_id: userId,
-        date: dateString,
-        periode: periode,
-        valeur: temperature,
-        type_afficheur: method,
-        confiance: confidence
-      }, { onConflict: 'user_id,date,periode' });
+await supabase
+  .from('temperature_logs')
+  .upsert({
+    user_id: userId,
+    date: dateString,
+    periode: periode,
+    valeur: temperature,
+    type_afficheur: method,
+    confiance: confidence,
+    fridge_id: fridge_id || null,       // ← NOUVEAU
+    fridge_nom: fridge_nom,              // ← NOUVEAU
+  }, { onConflict: 'user_id,fridge_id,date,periode' });
 
     res.json({
       ok: true,

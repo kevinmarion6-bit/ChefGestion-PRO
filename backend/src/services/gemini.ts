@@ -109,16 +109,41 @@ Analyse cette image et extrais en JSON strict (sans markdown ni backticks):
 {"fournisseur":"","numero_facture":"","date":"DD/MM/YYYY","produits":[{"nom":"","unite":"kg|L|pièce|colis","prix_ht":0,"quantite":0,"total_ht":0}],"total_ht":0,"tva":0,"total_ttc":0}
 Retourne UNIQUEMENT le JSON valide.`,
 
- temperature: `Tu es un expert en lecture d'afficheurs LED de cuisine. 
-L'image montre un montage avec différentes expositions d'un même écran.
+ temperature: `Tu es un expert en lecture d'afficheurs LED/LCD de cuisine professionnelle.
+L'image montre UN MÊME ÉCRAN photographié sous plusieurs traitements différents.
 
-CONSIGNES CRUCIALES :
-1. LE SIGNE MOINS : Il est souvent très fin à gauche. Si tu vois un tiret ou si c'est un congélateur, le signe est négatif.
-2. LE POINT DÉCIMAL : Il est souvent représenté par un seul segment LED. Si tu lis 185, c'est probablement 18.5.
-3. LES SEGMENTS : Un "8" dont une barre est faible peut être lu "0". Un "1" peut être un "7". Compare les 3 versions de l'image pour confirmer.
-4. COHÉRENCE : Un frigo positif est entre 0°C et 8°C. Un congélateur est entre -15°C et -25°C.
+⚠️ RÈGLES ABSOLUES (dans cet ordre de priorité) :
 
-Réponds UNIQUEMENT en JSON : {"temperature": number, "confiance": 0-100, "erreur": string | null}`,
+1. SIGNE NÉGATIF : Cherche un tiret "-" tout à gauche de l'afficheur.
+   - Si tu vois "-" ou "−", la valeur EST NÉGATIVE. Ne l'ignore jamais.
+   - Un congélateur affiche entre -15°C et -25°C.
+
+2. ZÉRO PARASITE : Sur certains afficheurs, un "0" s'affiche avant les chiffres réels.
+   - "-018" → c'est "-18°C" (le 0 est un artefact d'affichage, ignore-le)
+   - "05" → c'est "5°C"
+
+3. POINT DÉCIMAL : Un seul pixel ou segment allumé entre deux chiffres = virgule décimale.
+   - "185" sans point visible → garde "18.5" SEULEMENT si c'est cohérent
+   - "23" sans point → c'est "23°C", ne pas écrire "2.3" ni "2.23"
+   - Si le nombre est entre 10 et 40 avec 2 chiffres clairs → c'est un entier (ex: 23, 18, -18)
+
+4. COHÉRENCE TEMPÉRATURE :
+   - Frigo positif : 0°C à 8°C
+   - Ambiant/salle : 15°C à 30°C
+   - Congélateur : -10°C à -30°C
+   - TOUTE autre valeur est suspecte → réduis la confiance en dessous de 60
+
+5. COMPARE LES VERSIONS : L'image contient plusieurs variantes de traitement.
+   Vote majoritaire entre les variantes pour choisir la bonne lecture.
+
+Réponds UNIQUEMENT en JSON valide :
+{"temperature": number, "confiance": 0-100, "erreur": string | null}
+
+Exemples corrects : 
+- Afficheur "-018" → {"temperature": -18, "confiance": 90, "erreur": null}
+- Afficheur "23" → {"temperature": 23, "confiance": 95, "erreur": null}
+- Afficheur "5.4" → {"temperature": 5.4, "confiance": 95, "erreur": null}
+`,
 
   carte: `Tu es expert en analyse de cartes de restaurants français.
 Extrais tous les plats et prix TTC.

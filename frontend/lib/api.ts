@@ -149,22 +149,31 @@ export interface Recipe {
 
 export const Auth = {
   async signup(name: string, email: string, password: string, apiKey = '') {
-    // On change le type de retour pour inclure confirmRequired
-    return apiFetch<{ 
-      token?: string; 
-      user?: UserPublic; 
-      confirmRequired?: boolean 
-    }>('/auth/signup', {
+    // On appelle l'API via ton wrapper apiFetch
+    const res = await apiFetch<any>('/auth/signup', {
       method: 'POST',
       body: JSON.stringify({ name, email, password, apiKey }),
     });
+
+    // On "nettoie" la réponse ici pour que le Context reçoive 
+    // toujours le même format, avec ou sans mail.
+    return {
+      token: res?.session?.access_token || res?.token || (res?.data?.session?.access_token),
+      user: res?.user || res?.data?.user,
+      confirmRequired: res?.confirmRequired || res?.data?.confirmRequired || false
+    };
   },
 
   async login(email: string, password: string) {
-    return apiFetch<{ token: string; user: UserPublic }>('/auth/login', {
+    const res = await apiFetch<any>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
+    // On harmonise aussi le login au cas où
+    return { 
+      token: res?.token || res?.session?.access_token || res?.data?.session?.access_token, 
+      user: res?.user || res?.data?.user 
+    };
   },
 
   async me() {
@@ -185,7 +194,6 @@ export const Auth = {
     });
   },
 
-  // CORRIGÉ : Ajout du paramètre email
   async resetPassword(email: string, token: string, password: string) {
     return apiFetch<{ ok: boolean }>('/auth/reset-password', {
       method: 'POST',

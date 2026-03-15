@@ -12,6 +12,7 @@ import invoicesRoutes  from './routes/invoices';
 import suppliersRoutes from './routes/suppliers';
 import haccpRoutes     from './routes/haccp';
 import dashboardRoutes from './routes/dashboard';
+import fridgesRouter   from './routes/fridges';
 import { supabase }    from './services/supabase';
 
 const app = express();
@@ -31,6 +32,8 @@ app.use('/api/invoices',  invoicesRoutes);
 app.use('/api/suppliers', suppliersRoutes);
 app.use('/api/haccp',     haccpRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/fridges', fridgesRouter);
+
 
 // ─── HEALTH CHECK ────────────────────────────────────────
 app.get('/api/health', async (_req, res) => {

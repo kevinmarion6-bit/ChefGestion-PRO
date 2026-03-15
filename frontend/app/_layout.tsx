@@ -24,16 +24,23 @@ function NavigationGuard() {
   const router = useRouter();
 
   useEffect(() => {
-    if (isLoading) return;
+  // On ne bouge pas tant que l'app initialise (lecture du token en mémoire)
+  if (isLoading) return;
 
-    const inAuthGroup = segments[0] === '(auth)';
+  const firstSegment = segments && segments.length > 0 ? segments[0] : null;
+  const inAuthGroup = firstSegment === '(auth)';
 
+  // On ajoute un petit délai de sécurité pour éviter le "rebond"
+  const timeout = setTimeout(() => {
     if (!user && !inAuthGroup) {
       router.replace('/(auth)/login');
     } else if (user && inAuthGroup) {
       router.replace('/(tabs)');
     }
-  }, [user, isLoading, segments]);
+  }, 50); // 50ms suffisent à stabiliser le state
+
+  return () => clearTimeout(timeout);
+}, [user, isLoading, segments]);
 
   if (isLoading) {
     return (
