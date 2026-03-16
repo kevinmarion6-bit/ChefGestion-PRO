@@ -2,8 +2,8 @@ import { getToken } from './auth';
 
 const BASE_URL = (() => {
   try {
-    const { API_URL } = require('./config');
-    return API_URL;
+    const { API_BASE_URL } = require('./config');
+    return API_BASE_URL;
   } catch {
     return 'https://chefgestion-pro.onrender.com/api';
   }
