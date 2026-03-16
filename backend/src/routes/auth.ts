@@ -5,28 +5,26 @@ import { requireAuth, AuthRequest } from '../middleware/auth';
 const router = Router();
 const REDIRECT_URL = process.env.AUTH_REDIRECT_URL || 'https://auth.expo.fyi';
 
-// ─── SIGNUP (Optimisé pour envoi mail) ───────────────────
+// ─── SIGNUP ───────────────────────────────────────────────
 router.post('/signup', async (req: Request, res: Response) => {
-  const { name, email, password, apiKey = '' } = req.body;
+  const { name, email, password } = req.body;
 
-  if (!name || !email || !password) { 
-    return res.status(400).json({ ok: false, error: 'Nom, e-mail et mot de passe requis' }); 
+  if (!name || !email || !password) {
+    return res.status(400).json({ ok: false, error: 'Nom, e-mail et mot de passe requis' });
   }
-  if (password.length < 8) { 
-    return res.status(400).json({ ok: false, error: 'Mot de passe : minimum 8 caractères' }); 
+  if (password.length < 8) {
+    return res.status(400).json({ ok: false, error: 'Mot de passe : minimum 8 caractères' });
   }
 
   try {
-    // Utilisation de signUp pour déclencher l'envoi du mail de confirmation
     const { data, error: signUpErr } = await supabase.auth.signUp({
-  email,
-  password,
-  options: {
-    data: { name, api_key: apiKey },
-    // On remplace la chaîne fixe par la variable dynamique
-    emailRedirectTo: REDIRECT_URL 
-  },
-});
+      email,
+      password,
+      options: {
+        data: { name },
+        emailRedirectTo: REDIRECT_URL,
+      },
+    });
 
     if (signUpErr) {
       const msg = signUpErr.message.toLowerCase().includes('already')
@@ -35,24 +33,24 @@ router.post('/signup', async (req: Request, res: Response) => {
       return res.status(409).json({ ok: false, error: msg });
     }
 
-    // CAS 1 : Confirmation par mail active (data.session est null)
+    // CAS 1 : Confirmation par mail active
     if (data.user && !data.session) {
       return res.status(201).json({
         ok: true,
         data: {
           confirmRequired: true,
           message: 'Lien de confirmation envoyé par e-mail.',
-          user: { id: data.user.id, name, email, apiKey }
-        }
+          user: { id: data.user.id, name, email },
+        },
       });
     }
 
-    // CAS 2 : Inscription directe (si mail désactivé dans Supabase)
+    // CAS 2 : Inscription directe (mail désactivé dans Supabase)
     return res.status(201).json({
       ok: true,
       data: {
         token: data.session?.access_token,
-        user: { id: data.user?.id, name, email, apiKey },
+        user: { id: data.user?.id, name, email },
       },
     });
 
@@ -62,36 +60,34 @@ router.post('/signup', async (req: Request, res: Response) => {
   }
 });
 
-// ─── LOGIN (Avec check confirmation) ─────────────────────
+// ─── LOGIN ────────────────────────────────────────────────
 router.post('/login', async (req: Request, res: Response) => {
   const { email, password } = req.body;
-  if (!email || !password) { 
-    return res.status(400).json({ ok: false, error: 'E-mail et mot de passe requis' }); 
+  if (!email || !password) {
+    return res.status(400).json({ ok: false, error: 'E-mail et mot de passe requis' });
   }
 
   try {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    
+
     if (error) {
       if (error.message.includes('Email not confirmed')) {
         return res.status(403).json({ ok: false, error: 'Veuillez confirmer votre e-mail avant de vous connecter.' });
       }
-      return res.status(401).json({ ok: false, error: 'E-mail ou mot de passe incorrect' }); 
+      return res.status(401).json({ ok: false, error: 'E-mail ou mot de passe incorrect' });
     }
 
-    // Récupération du profil (nom et api_key)
     const { data: profile } = await supabase
-      .from('profiles').select('name, api_key').eq('id', data.user.id).single();
+      .from('profiles').select('name').eq('id', data.user.id).single();
 
     return res.json({
       ok: true,
       data: {
         token: data.session.access_token,
         user: {
-          id: data.user.id,
-          name: profile?.name ?? '',
+          id:    data.user.id,
+          name:  profile?.name ?? '',
           email: data.user.email ?? '',
-          apiKey: profile?.api_key ?? '',
         },
       },
     });
@@ -114,7 +110,7 @@ router.post('/forgot-password', async (req: Request, res: Response) => {
 });
 
 router.post('/reset-password', async (req: Request, res: Response) => {
-  const { email, token, password } = req.body; 
+  const { email, token, password } = req.body;
   if (!email || !token || !password) return res.status(400).json({ ok: false, error: 'Données manquantes' });
 
   try {
@@ -128,20 +124,13 @@ router.post('/reset-password', async (req: Request, res: Response) => {
   } catch (err) { return res.status(500).json({ ok: false, error: 'Erreur serveur' }); }
 });
 
-// ─── ME & API KEY ────────────────────────────────────────
+// ─── ME ──────────────────────────────────────────────────
 router.get('/me', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', req.userId!).single();
     if (!profile) return res.status(404).json({ ok: false, error: 'Profil introuvable' });
     return res.json({ ok: true, data: profile });
   } catch (err) { return res.status(500).json({ ok: false, error: 'Erreur serveur' }); }
-});
-
-router.patch('/apikey', requireAuth, async (req: AuthRequest, res: Response) => {
-  const { apiKey } = req.body;
-  const { error } = await supabase.from('profiles').update({ api_key: apiKey }).eq('id', req.userId!);
-  if (error) return res.status(500).json({ ok: false, error: error.message });
-  return res.json({ ok: true, data: { apiKey } });
 });
 
 export default router;

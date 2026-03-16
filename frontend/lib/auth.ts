@@ -15,11 +15,11 @@ export async function removeToken(): Promise<void> {
   await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]);
 }
 
+// ✅ apiKey supprimé de StoredUser — géré uniquement côté serveur
 export interface StoredUser {
   id: string;
   name: string;
   email: string;
-  apiKey: string;
 }
 
 export async function saveUser(user: StoredUser): Promise<void> {

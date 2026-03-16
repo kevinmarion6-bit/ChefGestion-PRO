@@ -9,10 +9,11 @@ import { GeminiInvoice, GeminiTemperature, GeminiCarte } from '../types';
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
-async function getApiKey(userId: string): Promise<string> {
-  if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
-  const { data } = await supabase.from('profiles').select('api_key').eq('id', userId).single();
-  return data?.api_key ?? '';
+// ✅ Simplifié : uniquement la clé Render, plus de fallback utilisateur
+function getApiKey(): string {
+  const key = process.env.GEMINI_API_KEY ?? '';
+  if (!key) console.warn('[WARN] GEMINI_API_KEY manquante dans les variables d\'environnement Render !');
+  return key;
 }
 
 function getVisionApiKey(): string {
@@ -23,7 +24,7 @@ function getVisionApiKey(): string {
 router.post('/invoice', requireAuth, upload.single('image'), async (req: AuthRequest, res: Response) => {
   if (!req.file) { res.status(400).json({ ok: false, error: 'Image requise' }); return; }
   try {
-    const apiKey = await getApiKey(req.userId!);
+    const apiKey = getApiKey();
     const b64 = req.file.buffer.toString('base64');
     const raw = await enqueueGemini(() => callGemini(apiKey, PROMPTS.invoice, b64, req.file!.mimetype));
     const data = parseGeminiJSON<GeminiInvoice>(raw);
@@ -144,54 +145,53 @@ router.post('/temperature', requireAuth, upload.single('image'), async (req: Aut
     }
 
     // --- ÉTAPE 1 : MONTAGE MULTI-TRAITEMENTS ---
-const baseImg = sharp(req.file.buffer).resize(1000);
-const metadata = await baseImg.metadata();
-const h = metadata.height || 600;
-const w = metadata.width || 600;
+    const baseImg = sharp(req.file.buffer).resize(1000);
+    const metadata = await baseImg.metadata();
+    const h = metadata.height || 600;
+    const w = metadata.width || 600;
 
-// Version A : Négatif + Seuil (idéal pour LED rouge/orange sur fond noir)
-const thresholdLayer = await sharp(req.file.buffer)
-  .resize(1000)
-  .grayscale()
-  .negate()
-  .threshold(140) // Légèrement abaissé pour capturer les segments pâles
-  .toBuffer();
+    // Version A : Négatif + Seuil (idéal pour LED rouge/orange sur fond noir)
+    const thresholdLayer = await sharp(req.file.buffer)
+      .resize(1000)
+      .grayscale()
+      .negate()
+      .threshold(140)
+      .toBuffer();
 
-// Version B : Contraste fort (pour LED bleue/blanche)
-const contrastLayer = await sharp(req.file.buffer)
-  .resize(1000)
-  .grayscale()
-  .linear(2.5, -80) // Contraste encore plus fort
-  .toBuffer();
+    // Version B : Contraste fort (pour LED bleue/blanche)
+    const contrastLayer = await sharp(req.file.buffer)
+      .resize(1000)
+      .grayscale()
+      .linear(2.5, -80)
+      .toBuffer();
 
-// Version C : NOUVEAU - Extraction du signe moins (bord gauche agrandi)
-// On découpe et agrandit le tiers gauche pour aider à détecter le "-"
-const leftCrop = await sharp(req.file.buffer)
-  .resize(1000)
-  .extract({ left: 0, top: 0, width: Math.floor(w * 0.35), height: h })
-  .resize(400, h) // On agrandit ce morceau pour le rendre plus lisible
-  .grayscale()
-  .negate()
-  .threshold(120)
-  .toBuffer();
+    // Version C : Extraction du signe moins (bord gauche agrandi)
+    const leftCrop = await sharp(req.file.buffer)
+      .resize(1000)
+      .extract({ left: 0, top: 0, width: Math.floor(w * 0.35), height: h })
+      .resize(400, h)
+      .grayscale()
+      .negate()
+      .threshold(120)
+      .toBuffer();
 
-const compositeBuffer = await baseImg
-  .extend({
-    bottom: h * 3,
-    background: { r: 255, g: 255, b: 255, alpha: 1 }
-  })
-  .composite([
-    { input: thresholdLayer, top: h, left: 0 },
-    { input: contrastLayer, top: h * 2, left: 0 },
-    { input: leftCrop, top: h * 3, left: 0 },
-  ])
-  .toBuffer();
-      
+    const compositeBuffer = await baseImg
+      .extend({
+        bottom: h * 3,
+        background: { r: 255, g: 255, b: 255, alpha: 1 }
+      })
+      .composite([
+        { input: thresholdLayer, top: h, left: 0 },
+        { input: contrastLayer, top: h * 2, left: 0 },
+        { input: leftCrop, top: h * 3, left: 0 },
+      ])
+      .toBuffer();
+
     // --- ÉTAPE 2 : APPEL VISION ---
     const visionKey = getVisionApiKey();
     const b64 = compositeBuffer.toString('base64');
     const rawText = await callVision(visionKey, b64);
-    
+
     console.log('[Vision] Texte extrait :', rawText);
 
     let temperature: number | null = null;
@@ -199,66 +199,57 @@ const compositeBuffer = await baseImg
     let method = 'Google Vision (Montage Hybride)';
 
     // --- ÉTAPE 3 : LOGIQUE DE PARSING AMÉLIORÉE ---
-const normalized = rawText
-  .replace(/,/g, '.')
-  .replace(/[°℃]/g, '')
-  // Répare "2 0" ou "1 8" → "2.0" ou "1.8" (espace entre chiffres = souvent un point décimal)
-  .replace(/(\d)\s+(\d)/g, '$1.$2')
-  .trim();
+    const normalized = rawText
+      .replace(/,/g, '.')
+      .replace(/[°℃]/g, '')
+      .replace(/(\d)\s+(\d)/g, '$1.$2')
+      .trim();
 
-console.log('[Parsing] Texte normalisé :', normalized);
+    console.log('[Parsing] Texte normalisé :', normalized);
 
-// ✅ CORRECTION CLÉE : "-018" → "-18" (zéro parasite après le signe moins)
-const cleanedForParsing = normalized
-  .replace(/-\s*0+(\d+)/g, '-$1')  // "-018" → "-18", "-007" → "-7"
-  .replace(/[^0-9.\-]/g, ' ')      // Garde chiffres, point, et signe moins
-  .trim();
+    const cleanedForParsing = normalized
+      .replace(/-\s*0+(\d+)/g, '-$1')
+      .replace(/[^0-9.\-]/g, ' ')
+      .trim();
 
-console.log('[Parsing] Après nettoyage :', cleanedForParsing);
+    console.log('[Parsing] Après nettoyage :', cleanedForParsing);
 
-const matches = cleanedForParsing.match(/-?\d+\.\d+|-?\d+/g) ?? [];
+    const matches = cleanedForParsing.match(/-?\d+\.\d+|-?\d+/g) ?? [];
 
-const candidates = matches
-  .map(m => {
-    let v = m;
-    const isNeg = v.startsWith('-');
-    const digitsOnly = v.replace('-', '').replace('.', '');
-    
-    // ✅ Correction 3 chiffres : SEULEMENT si les 3 chiffres semblent être X.Y
-    // Ex: "185" → "18.5" mais PAS "230" → "23.0" (les multiples de 10 restent entiers)
-    if (digitsOnly.length === 3 && !v.includes('.')) {
-      const lastDigit = parseInt(digitsOnly[2]);
-      const firstTwo = parseInt(digitsOnly.substring(0, 2));
-      // On ajoute le point seulement si ça donne une temp plausible
-      const withDecimal = parseFloat((isNeg ? '-' : '') + digitsOnly.substring(0, 2) + '.' + digitsOnly[2]);
-      const withoutDecimal = parseFloat(v);
-      
-      // Priorité au nombre entier s'il est dans la plage "température ambiante ou frigo"
-      if (withoutDecimal >= 10 && withoutDecimal <= 35) {
-        v = String(withoutDecimal); // Garde "23" comme 23, pas "2.3"
-      } else if (!isNaN(withDecimal) && withDecimal >= -40 && withDecimal <= 70) {
-        v = String(withDecimal); // "185" → "18.5" pour les cas frigo/congélateur
-      }
-    }
-    
-    return parseFloat(v);
-  })
-  .filter(n => !isNaN(n) && n >= -40 && n <= 70);
+    const candidates = matches
+      .map(m => {
+        let v = m;
+        const isNeg = v.startsWith('-');
+        const digitsOnly = v.replace('-', '').replace('.', '');
 
-console.log('[Parsing] Candidats valides :', candidates);
+        if (digitsOnly.length === 3 && !v.includes('.')) {
+          const withDecimal = parseFloat((isNeg ? '-' : '') + digitsOnly.substring(0, 2) + '.' + digitsOnly[2]);
+          const withoutDecimal = parseFloat(v);
 
-// Priorité : 1) Négatifs (congélateurs) 2) Décimaux 3) Entiers
-const negatives = candidates.filter(n => n < 0);
-const decimals = candidates.filter(n => !Number.isInteger(n) && n >= 0);
-const integers = candidates.filter(n => Number.isInteger(n) && n >= 0);
+          if (withoutDecimal >= 10 && withoutDecimal <= 35) {
+            v = String(withoutDecimal);
+          } else if (!isNaN(withDecimal) && withDecimal >= -40 && withDecimal <= 70) {
+            v = String(withDecimal);
+          }
+        }
 
-temperature = negatives[0] ?? decimals[0] ?? integers[0] ?? null;
+        return parseFloat(v);
+      })
+      .filter(n => !isNaN(n) && n >= -40 && n <= 70);
+
+    console.log('[Parsing] Candidats valides :', candidates);
+
+    const negatives = candidates.filter(n => n < 0);
+    const decimals  = candidates.filter(n => !Number.isInteger(n) && n >= 0);
+    const integers  = candidates.filter(n => Number.isInteger(n) && n >= 0);
+
+    temperature = negatives[0] ?? decimals[0] ?? integers[0] ?? null;
 
     // --- ÉTAPE 4 : FALLBACK GEMINI (Si Vision a échoué) ---
     if (temperature === null) {
       console.log('[Scan] Vision Montage échoué, passage à Gemini...');
       method = 'Gemini 1.5 Flash (Fallback)';
-      const apiKey = await getApiKey(userId);
+      const apiKey = getApiKey();
       const originalB64 = req.file.buffer.toString('base64');
 
       const rawGemini = await enqueueGemini(() =>
@@ -267,7 +258,7 @@ temperature = negatives[0] ?? decimals[0] ?? integers[0] ?? null;
       const dataG = parseGeminiJSON<GeminiTemperature>(rawGemini);
 
       temperature = dataG?.temperature ?? null;
-      confidence = dataG?.confiance ?? 50;
+      confidence  = dataG?.confiance ?? 50;
     }
 
     if (temperature === null) {
@@ -275,14 +266,13 @@ temperature = negatives[0] ?? decimals[0] ?? integers[0] ?? null;
     }
 
     // --- ÉTAPE 5 : MISE À JOUR QUOTA & ENREGISTREMENT ---
-    // Récupère le fridge_id depuis le body (envoyé par le frontend)
-const { fridge_id } = req.body; // Nouveau champ optionnel
+    const { fridge_id } = req.body;
 
-await supabase.from('profiles')
-  .update({ vision_scans_today: currentScans + 1, last_vision_reset: today })
-  .eq('id', userId);
+    await supabase.from('profiles')
+      .update({ vision_scans_today: currentScans + 1, last_vision_reset: today })
+      .eq('id', userId);
 
-// Calcul de la date et de la période de service
+    // Calcul de la date et de la période de service
     const now = new Date();
     const currentHour = now.getHours();
     let serviceDate = new Date(now);
@@ -296,31 +286,32 @@ await supabase.from('profiles')
         serviceDate.setDate(serviceDate.getDate() - 1);
       }
     }
-    const dateString = serviceDate.toISOString().split('T')[0];
-  
-// Récupère le nom du frigo si fourni
-let fridge_nom = '';
-if (fridge_id) {
-  const { data: fridge } = await supabase
-    .from('fridges')
-    .select('nom')
-    .eq('id', fridge_id)
-    .single();
-  fridge_nom = fridge?.nom ?? '';
-}
 
-await supabase
-  .from('temperature_logs')
-  .upsert({
-    user_id: userId,
-    date: dateString,
-    periode: periode,
-    valeur: temperature,
-    type_afficheur: method,
-    confiance: confidence,
-    fridge_id: fridge_id || null,       // ← NOUVEAU
-    fridge_nom: fridge_nom,              // ← NOUVEAU
-  }, { onConflict: 'user_id,fridge_id,date,periode' });
+    const dateString = serviceDate.toISOString().split('T')[0];
+
+    // Récupère le nom du frigo si fourni
+    let fridge_nom = '';
+    if (fridge_id) {
+      const { data: fridge } = await supabase
+        .from('fridges')
+        .select('nom')
+        .eq('id', fridge_id)
+        .single();
+      fridge_nom = fridge?.nom ?? '';
+    }
+
+    await supabase
+      .from('temperature_logs')
+      .upsert({
+        user_id:       userId,
+        date:          dateString,
+        periode:       periode,
+        valeur:        temperature,
+        type_afficheur: method,
+        confiance:     confidence,
+        fridge_id:     fridge_id || null,
+        fridge_nom:    fridge_nom,
+      }, { onConflict: 'user_id,fridge_id,date,periode' });
 
     res.json({
       ok: true,
@@ -367,7 +358,7 @@ router.post('/haccp-update', requireAuth, async (req: AuthRequest, res: Response
 router.post('/carte', requireAuth, upload.single('image'), async (req: AuthRequest, res: Response) => {
   if (!req.file) { res.status(400).json({ ok: false, error: 'Image requise' }); return; }
   try {
-    const apiKey = await getApiKey(req.userId!);
+    const apiKey = getApiKey();
     const b64 = req.file.buffer.toString('base64');
     const raw = await enqueueGemini(() => callGemini(apiKey, PROMPTS.carte, b64, req.file!.mimetype));
     const data = parseGeminiJSON<GeminiCarte>(raw);
@@ -387,7 +378,7 @@ router.post('/recipes', requireAuth, async (req: AuthRequest, res: Response) => 
       .from('price_db').select('product_nom').eq('user_id', req.userId!).limit(15);
     const productList = (products ?? []).map((p: any) => p.product_nom).join(', ') || 'bœuf, bar, crème fraîche, beurre, échalotes';
 
-    const apiKey = await getApiKey(req.userId!);
+    const apiKey = getApiKey();
     const raw = await enqueueGemini(() => callGemini(apiKey, PROMPTS.recipes(style, categorie, productList)));
     const data = parseGeminiJSON<{ recettes: unknown[] }>(raw);
     if (!data) { res.status(422).json({ ok: false, error: 'Génération échouée' }); return; }

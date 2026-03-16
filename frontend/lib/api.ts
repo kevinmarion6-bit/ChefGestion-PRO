@@ -1,56 +1,49 @@
-/**
- * Client API — toutes les communications avec le backend Express
- * Intègre maintenant la récupération de mot de passe via Resend
- */
-
-import { API_BASE_URL, TIMEOUT_MS } from './config';
 import { getToken } from './auth';
 
-// ─── FETCH WRAPPER ───────────────────────────────────────
+const BASE_URL = (() => {
+  try {
+    const { API_URL } = require('./config');
+    return API_URL;
+  } catch {
+    return 'https://chefgestion-pro.onrender.com/api';
+  }
+})();
 
-async function apiFetch<T>(
-  path: string,
-  options: RequestInit = {},
-): Promise<T> {
+// ─── FETCH HELPER ────────────────────────────────────────
+
+async function apiFetch<T>(path: string, options: RequestInit = {}, isAuthAction = false): Promise<T> {
   const token = await getToken();
   const controller = new AbortController();
-  
-  // LOGIQUE DE MINUTEUR :
-  // Si c'est l'authentification (réveil serveur), on attend 60s, sinon on garde ton TIMEOUT_MS habituel
-  const isAuthAction = path.includes('/auth/forgot-password') || path.includes('/auth/signup');
-  const waitTime = isAuthAction ? 60000 : TIMEOUT_MS;
-  
-  const timer = setTimeout(() => controller.abort(), waitTime);
+  const timeout = isAuthAction ? 35000 : 20000;
+  const timer = setTimeout(() => controller.abort(), timeout);
 
   try {
-    const res = await fetch(`${API_BASE_URL}${path}`, {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(options.headers as Record<string, string> ?? {}),
+    };
+
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    if (options.body instanceof FormData) delete headers['Content-Type'];
+
+    const res = await fetch(`${BASE_URL}${path}`, {
       ...options,
+      headers,
       signal: controller.signal,
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(!(options.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
-        ...(options.headers || {}),
-      },
     });
 
     const json = await res.json();
 
-    // LOG POUR DEBUG (À regarder dans ton terminal VS Code/Expo)
-    console.log(`[API RESPONSE] ${path}:`, json);
-
-    // Si le code HTTP est entre 200 et 299, c'est un succès !
     if (res.ok || res.status === 201) {
-      // On renvoie soit json.data si ça existe, soit le json brut
       return (json.data ? json.data : json) as T;
     }
 
-    // Sinon, on gère l'erreur
     throw new ApiError(json.error || json.message || 'Erreur inconnue', res.status);
 
   } catch (err) {
     if (err instanceof ApiError) throw err;
     if ((err as Error).name === 'AbortError') {
-      const msg = isAuthAction 
+      const msg = isAuthAction
         ? "Le Chef prépare la cuisine... (Réveil du serveur en cours). Réessaie dans 10 secondes."
         : "Délai d'attente dépassé — vérifiez votre connexion";
       throw new ApiError(msg, 408);
@@ -67,7 +60,7 @@ async function apiUpload<T>(path: string, formData: FormData): Promise<T> {
   return apiFetch<T>(path, {
     method: 'POST',
     body: formData,
-    headers: {}, 
+    headers: {},
   });
 }
 
@@ -86,7 +79,7 @@ export interface UserPublic {
   id: string;
   name: string;
   email: string;
-  apiKey: string;
+  // ✅ apiKey supprimé — géré uniquement côté serveur via GEMINI_API_KEY
 }
 
 export interface Invoice {
@@ -146,21 +139,18 @@ export interface Recipe {
 
 // ─── AUTH ────────────────────────────────────────────────
 
-
 export const Auth = {
-  async signup(name: string, email: string, password: string, apiKey = '') {
-    // On appelle l'API via ton wrapper apiFetch
+  // ✅ Plus de paramètre apiKey
+  async signup(name: string, email: string, password: string) {
     const res = await apiFetch<any>('/auth/signup', {
       method: 'POST',
-      body: JSON.stringify({ name, email, password, apiKey }),
-    });
+      body: JSON.stringify({ name, email, password }),
+    }, true);
 
-    // On "nettoie" la réponse ici pour que le Context reçoive 
-    // toujours le même format, avec ou sans mail.
     return {
-      token: res?.session?.access_token || res?.token || (res?.data?.session?.access_token),
-      user: res?.user || res?.data?.user,
-      confirmRequired: res?.confirmRequired || res?.data?.confirmRequired || false
+      token: res?.session?.access_token || res?.token || res?.data?.session?.access_token,
+      user:  res?.user || res?.data?.user,
+      confirmRequired: res?.confirmRequired || res?.data?.confirmRequired || false,
     };
   },
 
@@ -168,23 +158,15 @@ export const Auth = {
     const res = await apiFetch<any>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
-    });
-    // On harmonise aussi le login au cas où
-    return { 
-      token: res?.token || res?.session?.access_token || res?.data?.session?.access_token, 
-      user: res?.user || res?.data?.user 
+    }, true);
+    return {
+      token: res?.token || res?.session?.access_token || res?.data?.session?.access_token,
+      user:  res?.user || res?.data?.user,
     };
   },
 
   async me() {
     return apiFetch<UserPublic>('/auth/me');
-  },
-
-  async updateApiKey(apiKey: string) {
-    return apiFetch<{ apiKey: string }>('/auth/apikey', {
-      method: 'PATCH',
-      body: JSON.stringify({ apiKey }),
-    });
   },
 
   async forgotPassword(email: string) {
@@ -199,7 +181,8 @@ export const Auth = {
       method: 'POST',
       body: JSON.stringify({ email, token, password }),
     });
-  }
+  },
+  // ✅ updateApiKey supprimé
 };
 
 // ─── DASHBOARD ───────────────────────────────────────────
@@ -331,8 +314,8 @@ export async function checkHealth() {
 
 async function uriToFormData(uri: string, fieldName: string): Promise<FormData> {
   const fd = new FormData();
-  const filename = uri.split('/').pop() || 'image.jpg'; // Récupère le vrai nom du fichier
-  
+  const filename = uri.split('/').pop() || 'image.jpg';
+
   (fd as any).append(fieldName, {
     uri,
     name: filename,

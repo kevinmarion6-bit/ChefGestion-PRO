@@ -16,7 +16,7 @@ const C = {
   cream: '#F5F5DC', muted: '#6B6050', mutedL: '#8A7A60',
 };
 
-// --- COMPOSANT DE CHAMP SAISIE ---
+// ─── COMPOSANT DE CHAMP SAISIE ───────────────────────────
 function Field({
   label, value, onChange, placeholder,
   secure = false, keyboard = 'default', mono = false,
@@ -36,7 +36,7 @@ function Field({
           style={[
             s.input,
             mono && { fontFamily: 'DMSans_400Regular' },
-            secure && { paddingRight: 48 }
+            secure && { paddingRight: 48 },
           ]}
           value={value}
           onChangeText={onChange}
@@ -68,25 +68,23 @@ function Field({
   );
 }
 
-// --- ÉCRAN PRINCIPAL ---
+// ─── ÉCRAN PRINCIPAL ─────────────────────────────────────
 export default function LoginScreen() {
   const { login, signup } = useApp();
   const scrollRef = useRef<ScrollView>(null);
 
-  // States
-  const [tab, setTab]         = useState<'login' | 'signup'>('login');
-  const [loading, setLoading] = useState(false);
+  const [tab, setTab]               = useState<'login' | 'signup'>('login');
+  const [loading, setLoading]       = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const [lEmail, setLEmail]   = useState('');
-  const [lPass, setLPass]     = useState('');
-  const [sName, setSName]     = useState('');
-  const [sEmail, setSEmail]   = useState('');
-  const [sPass, setSPass]     = useState('');
-  const [sApi, setSApi]       = useState('');
+  const [lEmail, setLEmail]         = useState('');
+  const [lPass, setLPass]           = useState('');
+  const [sName, setSName]           = useState('');
+  const [sEmail, setSEmail]         = useState('');
+  const [sPass, setSPass]           = useState('');
+  // ✅ sApi supprimé
 
   const keyboardPad = useRef(new Animated.Value(0)).current;
 
-  // Gestion du clavier (Animation)
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
@@ -112,12 +110,11 @@ export default function LoginScreen() {
     return () => { s1.remove(); s2.remove(); };
   }, []);
 
-  // Actions
   function switchTab(t: 'login' | 'signup') {
     Keyboard.dismiss();
     setTab(t);
     setTimeout(() => {
-        scrollRef.current?.scrollTo({ y: 0, animated: true });
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
     }, 100);
   }
 
@@ -129,73 +126,63 @@ export default function LoginScreen() {
       await login(lEmail, lPass);
       router.replace('/(tabs)');
     } catch (e: any) {
-      // Gestion spécifique de l'erreur 403 (Email non confirmé)
       const isAuthError = e.status === 403 || e.message?.toLowerCase().includes('confirm');
-      const msg = isAuthError 
-        ? "Confirmez d'abord votre email Chef !" 
+      const msg = isAuthError
+        ? "Confirmez d'abord votre email Chef !"
         : (e instanceof ApiError ? e.message : 'Connexion impossible. Vérifiez que le backend est lancé.');
-      
       Alert.alert('Erreur', msg);
     } finally { setLoading(false); }
   }
 
   async function handleSignup() {
-  Keyboard.dismiss();
-  if (!sName || !sEmail || !sPass) { 
-    Alert.alert('Champs requis', 'Remplissez tous les champs.'); 
-    return; 
-  }
-  
-  setLoading(true);
-  try {
-    // On type la réponse pour éviter les erreurs de "any"
-    const result = await Auth.signup(sName, sEmail, sPass, sApi) as any;
-    
-    console.log("DEBUG - Résultat Inscription:", JSON.stringify(result, null, 2));
-
-    // 1. Cas confirmation mail active
-    if (result?.confirmRequired) {
-      setIsSubmitted(true);
-      scrollRef.current?.scrollTo({ y: 0, animated: true });
+    Keyboard.dismiss();
+    if (!sName || !sEmail || !sPass) {
+      Alert.alert('Champs requis', 'Remplissez tous les champs.');
       return;
     }
 
-    // 2. Cas confirmation OFF (on récupère le token)
-    const token = result?.token || result?.data?.session?.access_token;
-    const u = result?.user || result?.data?.user;
+    setLoading(true);
+    try {
+      // ✅ Plus de sApi dans l'appel
+      const result = await Auth.signup(sName, sEmail, sPass) as any;
 
-    if (token && u) {
-      console.log("Token reçu, mise à jour du contexte...");
-      // 1. On met à jour le contexte avec l'utilisateur
-      await login(sEmail, sPass); 
-      // 2. SURTOUT : On ne fait pas de router.replace ici ! 
-      // Le NavigationGuard dans _layout.tsx s'en chargera tout seul 
-      // dès qu'il verra que 'user' n'est plus nul.
-    }
-    
-    else {
-      // Si pas de token direct, on tente le login manuel auto
-      console.log("Tentative de login automatique...");
-      await login(sEmail, sPass);
-    }
+      console.log('DEBUG - Résultat Inscription:', JSON.stringify(result, null, 2));
 
-  } catch (e: any) {
-    console.error("Erreur Inscription:", e);
-    Alert.alert('Erreur', e instanceof ApiError ? e.message : 'Inscription impossible.');
-  } finally { 
-    setLoading(false); 
+      if (result?.confirmRequired) {
+        setIsSubmitted(true);
+        scrollRef.current?.scrollTo({ y: 0, animated: true });
+        return;
+      }
+
+      const token = result?.token || result?.data?.session?.access_token;
+      const u     = result?.user  || result?.data?.user;
+
+      if (token && u) {
+        await login(sEmail, sPass);
+      } else {
+        await login(sEmail, sPass);
+      }
+
+    } catch (e: any) {
+      console.error('Erreur Inscription:', e);
+      Alert.alert('Erreur', e instanceof ApiError ? e.message : 'Inscription impossible.');
+    } finally {
+      setLoading(false);
+    }
   }
-}
 
-  // --- RENDUS CONDITIONNELS ---
-
+  // ─── RENDUS CONDITIONNELS ────────────────────────────────
   if (!isConfigured()) {
     return (
       <View style={[s.root, { alignItems: 'center', justifyContent: 'center', padding: 24 }]}>
         <Text style={{ fontSize: 36, marginBottom: 16 }}>⚙️</Text>
         <Text style={s.configTitle}>Configuration requise</Text>
         <Text style={s.configText}>
-          Ouvrez <Text style={{ color: C.gold, fontFamily: 'DMSans_400Regular' }}>frontend/lib/config.ts</Text> et remplacez <Text style={{ color: C.gold }}>VOTRE_IP_ICI</Text> par l'IP du backend.
+          Ouvrez{' '}
+          <Text style={{ color: C.gold, fontFamily: 'DMSans_400Regular' }}>frontend/lib/config.ts</Text>
+          {' '}et remplacez{' '}
+          <Text style={{ color: C.gold }}>VOTRE_IP_ICI</Text>
+          {' '}par l'IP du backend.
         </Text>
       </View>
     );
@@ -208,7 +195,7 @@ export default function LoginScreen() {
           <MaterialCommunityIcons name="email-check-outline" size={60} color={C.gold} />
           <Text style={[s.configTitle, { marginTop: 20 }]}>VÉRIFIE TES MAILS</Text>
           <Text style={[s.configText, { marginBottom: 24 }]}>
-            Chef, un lien de confirmation a été envoyé à :{"\n"}
+            Chef, un lien de confirmation a été envoyé à :{'\n'}
             <Text style={{ color: C.cream, fontWeight: 'bold' }}>{sEmail}</Text>
           </Text>
           <TouchableOpacity
@@ -222,7 +209,7 @@ export default function LoginScreen() {
     );
   }
 
-  // --- RENDU DU FORMULAIRE ---
+  // ─── FORMULAIRE ──────────────────────────────────────────
   return (
     <View style={s.root}>
       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
@@ -281,7 +268,12 @@ export default function LoginScreen() {
                     <Text style={s.forgotLinkTxt}>Mot de passe oublié ?</Text>
                   </TouchableOpacity>
                   <View style={{ height: 12 }} />
-                  <TouchableOpacity style={[s.btn, loading && s.btnOff]} onPress={handleLogin} disabled={loading} activeOpacity={0.8}>
+                  <TouchableOpacity
+                    style={[s.btn, loading && s.btnOff]}
+                    onPress={handleLogin}
+                    disabled={loading}
+                    activeOpacity={0.8}
+                  >
                     <Text style={s.btnTxt}>{loading ? 'Connexion...' : 'Se Connecter'}</Text>
                   </TouchableOpacity>
                 </>
@@ -302,13 +294,14 @@ export default function LoginScreen() {
                     placeholder="••••••••" secure
                     autoComplete="new-password" textContent="newPassword"
                   />
-                  <View style={s.geminiBox}>
-                    <Text style={s.geminiTitle}>🔑 Clé API Gemini</Text>
-                    <Field label="" value={sApi} onChange={setSApi} placeholder="AIzaSy..." mono autoComplete="off" />
-                    <Text style={s.geminiNote}>Facultatif — active l'OCR intelligent</Text>
-                  </View>
+                  {/* ✅ Bloc clé API Gemini supprimé */}
                   <View style={{ height: 8 }} />
-                  <TouchableOpacity style={[s.btn, loading && s.btnOff]} onPress={handleSignup} disabled={loading} activeOpacity={0.8}>
+                  <TouchableOpacity
+                    style={[s.btn, loading && s.btnOff]}
+                    onPress={handleSignup}
+                    disabled={loading}
+                    activeOpacity={0.8}
+                  >
                     <Text style={s.btnTxt}>{loading ? 'Création...' : 'Créer mon compte'}</Text>
                   </TouchableOpacity>
                 </>
@@ -322,31 +315,29 @@ export default function LoginScreen() {
   );
 }
 
-// --- STYLES ---
+// ─── STYLES ──────────────────────────────────────────────
 const s = StyleSheet.create({
-  root:       { flex: 1, backgroundColor: C.black },
-  scroll: { flexGrow: 1, padding: 24, paddingTop: 52, backgroundColor: C.black, justifyContent: 'center' },
+  root:        { flex: 1, backgroundColor: C.black },
+  scroll:      { flexGrow: 1, padding: 24, paddingTop: 52, backgroundColor: C.black, justifyContent: 'center' },
   configTitle: { fontFamily: 'Cinzel_700SemiBold', fontSize: 16, color: C.gold, textAlign: 'center', marginBottom: 12 },
   configText:  { fontSize: 14, color: C.muted, textAlign: 'center', lineHeight: 22 },
-  logoWrap: { alignItems: 'center', marginBottom: 28 },
-  logoImg:  { width: 200, height: 200, marginBottom: 12 },
-  tagline:  { fontFamily: 'Cinzel_400Regular', fontSize: 16, letterSpacing: 4, color: C.bronze, textTransform: 'uppercase', marginTop: 2 },
-  card:         { backgroundColor: C.charcoal, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(212,175,55,0.22)', overflow: 'hidden' },
+  logoWrap:    { alignItems: 'center', marginBottom: 28 },
+  logoImg:     { width: 200, height: 200, marginBottom: 12 },
+  tagline:     { fontFamily: 'Cinzel_400Regular', fontSize: 16, letterSpacing: 4, color: C.bronze, textTransform: 'uppercase', marginTop: 2 },
+  card:        { backgroundColor: C.charcoal, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(212,175,55,0.22)', overflow: 'hidden' },
   cardTopLine: { height: 1, backgroundColor: C.gold, opacity: 0.5 },
-  tabs:           { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: 'rgba(212,175,55,0.12)' },
-  tab:          { flex: 1, paddingVertical: 15, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent', marginBottom: -1 },
-  tabActive:    { borderBottomColor: C.gold },
-  tabTxt:       { fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: C.muted },
+  tabs:        { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: 'rgba(212,175,55,0.12)' },
+  tab:         { flex: 1, paddingVertical: 15, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent', marginBottom: -1 },
+  tabActive:   { borderBottomColor: C.gold },
+  tabTxt:      { fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: C.muted },
   tabTxtActive: { color: C.gold },
-  formPad:    { padding: 22 },
-  fieldWrap:  { marginBottom: 18 },
-  fieldLabel: { fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: C.mutedL, marginBottom: 8, fontWeight: '600' },
-  input:      { backgroundColor: C.blackM, borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)', borderRadius: 8, padding: 14, color: C.cream, fontSize: 17, fontWeight: '500' },
-  forgotLink: { alignSelf: 'flex-end', marginTop: -4, paddingVertical: 8 },
+  formPad:     { padding: 22 },
+  fieldWrap:   { marginBottom: 18 },
+  fieldLabel:  { fontFamily: 'Cinzel_400Regular', fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: C.mutedL, marginBottom: 8, fontWeight: '600' },
+  input:       { backgroundColor: C.blackM, borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)', borderRadius: 8, padding: 14, color: C.cream, fontSize: 17, fontWeight: '500' },
+  forgotLink:  { alignSelf: 'flex-end', marginTop: -4, paddingVertical: 8 },
   forgotLinkTxt: { fontFamily: 'Cinzel_400Regular', fontSize: 14, letterSpacing: 1.5, color: C.gold, textDecorationLine: 'underline' },
-  geminiBox:     { marginTop: 8, paddingTop: 16, borderTopWidth: 1, borderTopColor: 'rgba(212,175,55,0.1)' },
-  geminiTitle: { fontFamily: 'Cinzel_400Regular', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: C.bronze, marginBottom: 10 },
-  geminiNote:  { fontSize: 12, color: C.muted, fontStyle: 'italic', marginTop: 4 },
+  // ✅ geminiBox, geminiTitle, geminiNote supprimés
   btn:    { backgroundColor: C.gold, borderRadius: 8, padding: 16, alignItems: 'center', marginTop: 4 },
   btnOff: { opacity: 0.6 },
   btnTxt: { fontFamily: 'Cinzel_700SemiBold', fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', color: C.black, fontWeight: '700' },
