@@ -1,13 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View, Text, StyleSheet, ActivityIndicator, ScrollView,
-  Alert, Modal, TextInput, TouchableOpacity, Image,
-  Keyboard, TouchableWithoutFeedback,
-} from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, ScrollView, Alert, Modal, TextInput, TouchableOpacity, Image, Keyboard, TouchableWithoutFeedback } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import * as Print from 'expo-print';
 import { getToken } from '../../lib/auth';
+import { Restaurant } from '@/lib/api';
 
 const API_URL = 'https://chefgestion-pro.onrender.com';
 
@@ -24,6 +21,7 @@ export default function HaccpScreen() {
   const [selectedDate, setSelectedDate]         = useState('');
   const [selectedPeriode, setSelectedPeriode]   = useState('');
   const [selectedFridgeId, setSelectedFridgeId] = useState<string | null>(null);
+  const [restaurantName, setRestaurantName]     = useState('');
 
   const now          = new Date();
   const viewMonthStr = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
@@ -44,6 +42,7 @@ export default function HaccpScreen() {
   useEffect(() => {
     fetchFridges();
     fetchLogs();
+    Restaurant.get().then(r => { if (r?.nom) setRestaurantName(r.nom); }).catch(() => {});
   }, []);
 
   // ─── Sélectionner automatiquement le 1er frigo ──────────
