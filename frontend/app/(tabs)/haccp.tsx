@@ -99,7 +99,11 @@ export default function HaccpScreen() {
   const activeFridge = fridges.find(f => f.id === activeFridgeId) || null;
 
   const activeLogs = activeFridgeId
-    ? logs.filter(l => l.fridge_id === activeFridgeId || (l.fridge_nom && activeFridge && l.fridge_nom === activeFridge.nom))
+    ? logs.filter(l => 
+        l.fridge_id === activeFridgeId || 
+        (l.fridge_nom && activeFridge && l.fridge_nom === activeFridge.nom)
+        (!l.fridge_id && !l.fridge_nom)
+      )
     : logs;
 
   // ─── OUVRIR MODALE TEMPÉRATURE ───────────────────────────
@@ -183,11 +187,15 @@ export default function HaccpScreen() {
 
   // ─── EXPORT PDF ──────────────────────────────────────────
   const exportPdf = async () => {
+    let restName = restaurantName;
+    if (!restName) {
+      try {
+        const r = await Restaurant.get();
+        if (r?.nom) restName = r.nom;
+      } catch {}
+    }
     const fridgesToShow = fridges.length > 0 ? fridges : [{ id: null, nom: 'Sans équipement', type: 'positif' }];
     const logoUrl = 'https://osnckjlgqqawcgduideb.supabase.co/storage/v1/object/public/assets/logo.png';
-
-    // TODO: récupérer depuis le contexte restaurant quand disponible
-    const restaurantName = '';
 
     let pagesHtml = '';
 
@@ -216,7 +224,7 @@ export default function HaccpScreen() {
           <div class="page-header">
             <img src="${logoUrl}" class="logo" />
             <div class="header-text">
-              <h1>Relevés de Températures HACCP</h1>
+              <h1>RELEVÉS DE TEMPÉRATURES HACCP</h1>
               ${restaurantName ? `<p class="restaurant">${restaurantName}</p>` : ''}
               <p class="meta">${viewMonthLabel} — Exporté le ${new Date().toLocaleDateString('fr-FR')}</p>
             </div>

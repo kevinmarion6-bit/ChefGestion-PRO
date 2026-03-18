@@ -308,8 +308,6 @@ router.post('/temperature', requireAuth, upload.single('image'), async (req: Aut
         date:          dateString,
         periode:       periode,
         valeur:        temperature,
-        type_afficheur: method,
-        confiance:     confidence,
         fridge_id:     fridge_id || null,
         fridge_nom:    fridge_nom,
       }, { onConflict: 'user_id,fridge_id,date,periode' });

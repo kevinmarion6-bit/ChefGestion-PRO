@@ -59,7 +59,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setIsLoading(false);
           Auth.me().then(fresh => {
             if (fresh) {
-              const updated = { ...storedUser, ...fresh };
+              // Préserver l'email du storedUser (absent du profil Supabase)
+              const updated = {
+                id: fresh.id || storedUser.id,
+                name: fresh.name || storedUser.name,
+                email: storedUser.email,
+              };
               setUserState(updated);
               saveUser(updated);
             }
