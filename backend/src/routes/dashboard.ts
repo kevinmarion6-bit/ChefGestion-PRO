@@ -1,12 +1,14 @@
 import { Router, Response } from 'express';
 import { supabase } from '../services/supabase';
 import { requireAuth, AuthRequest } from '../middleware/auth';
+import { getRestaurantUserIds } from '../services/restaurantHelper';
 
 const router = Router();
 
 // GET /api/dashboard
 router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
   const uid = req.userId!;
+  const userIds = await getRestaurantUserIds(uid);
   try {
     const [
       { data: invoices },
@@ -15,15 +17,15 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
       { count: suppliersCount },
       { data: recentAlerts },
     ] = await Promise.all([
-      supabase.from('invoices').select('id, supplier, date, total_ht, total_ttc, created_at').eq('user_id', uid).order('created_at', { ascending: false }).limit(5),
-      supabase.from('price_alerts').select('*', { count: 'exact', head: true }).eq('user_id', uid),
-      supabase.from('price_db').select('*', { count: 'exact', head: true }).eq('user_id', uid),
-      supabase.from('suppliers').select('*', { count: 'exact', head: true }).eq('user_id', uid),
-      supabase.from('price_alerts').select('*').eq('user_id', uid).order('created_at', { ascending: false }).limit(5),
+      supabase.from('invoices').select('id, supplier, date, total_ht, total_ttc, created_at').in('user_id', userIds).order('created_at', { ascending: false }).limit(5),
+      supabase.from('price_alerts').select('*', { count: 'exact', head: true }).in('user_id', userIds),
+      supabase.from('price_db').select('*', { count: 'exact', head: true }).in('user_id', userIds),
+      supabase.from('suppliers').select('*', { count: 'exact', head: true }).in('user_id', userIds),
+      supabase.from('price_alerts').select('*').in('user_id', userIds).order('created_at', { ascending: false }).limit(5),
     ]);
 
     // Calcul coût total et marge estimée
-    const { data: allInvoices } = await supabase.from('invoices').select('total_ht').eq('user_id', uid);
+    const { data: allInvoices } = await supabase.from('invoices').select('total_ht').in('user_id', userIds);
     const totalCoutHT = (allInvoices ?? []).reduce((s, i) => s + (i.total_ht ?? 0), 0);
     const facturesCount = allInvoices?.length ?? 0;
     const margeEstimee = facturesCount > 0 ? Math.max(55, 75 - facturesCount * 0.3) : null;
@@ -33,7 +35,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
     const { data: todayTemps } = await supabase
       .from('temperature_logs')
       .select('*')
-      .eq('user_id', uid)
+      .in('user_id', userIds)
       .eq('date', today);
 
     const tempAlerts: any[] = [];
@@ -74,7 +76,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
       const { data: dlcProducts } = await supabase
         .from('dlc_products')
         .select('*')
-        .eq('user_id', uid)
+        .in('user_id', userIds)
         .lte('dlc', threeDaysStr)
         .gte('dlc', today)
         .order('dlc', { ascending: true });
@@ -103,7 +105,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
     const { data: fridges } = await supabase
       .from('fridges')
       .select('id, nom')
-      .eq('user_id', uid);
+      .in('user_id', userIds);
 
     const fridgeCount = (fridges ?? []).length;
     const todayLogs = (todayTemps ?? []).filter(l => l.periode === currentService);
