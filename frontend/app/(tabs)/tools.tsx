@@ -6,6 +6,7 @@ import { Colors, Spacing, Radius } from '@/constants/Theme';
 import { Btn } from '@/components/UI';
 import { useApp } from '@/lib/context';
 import { Scan } from '@/lib/api';
+import { Image } from 'react-native';
 // ─── ACCORDION ───────────────────────────────────────────
 function Accordion({ icon, title, children }: { icon: string; title: string; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -172,9 +173,18 @@ const { user } = useApp();
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Boîte à Outils</Text>
-        <Text style={styles.headerSub}>Calculs & Fiches techniques</Text>
-      </View>
+  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+    <Image
+      source={require('../../assets/logo.png')}
+      style={{ width: 28, height: 28, borderRadius: 6, marginRight: 10 }}
+      resizeMode="contain"
+    />
+    <View>
+      <Text style={styles.headerTitle}>Boîte à Outils</Text>
+      <Text style={styles.headerSub}>Calculs & Fiches techniques</Text>
+    </View>
+  </View>
+</View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 

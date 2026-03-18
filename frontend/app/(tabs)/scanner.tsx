@@ -175,9 +175,19 @@ export default function ScannerScreen() {
         const data = await Scan.carte(uri);
         setResult({ type: 'carte', data });
       } else {
-        const { Haccp } = await import('@/lib/api');
-        await Haccp.uploadPhoto(uri);
-        setResult({ type: 'haccp' });
+        // HACCP : appel vers haccp-label pour extraction DLC par Gemini
+        const token = await getToken();
+        const fd = new FormData();
+        fd.append('image', { uri, name: 'photo.jpg', type: 'image/jpeg' } as any);
+        const response = await fetch('https://chefgestion-pro.onrender.com/api/scan/haccp-label', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: fd,
+        });
+        const json = await response.json();
+        if (!json.ok) throw new Error(json.error ?? 'Lecture étiquette impossible');
+        setResult({ type: 'haccp', data: json.data });
+        await refreshDashboard();
       }
     } catch (e: any) {
       Alert.alert('Erreur', e?.message ?? "Échec de l'analyse.");
@@ -378,11 +388,31 @@ function ScanResult({ result }: { result: any }) {
   }
 
   if (result.type === 'haccp') {
+    const label = result.data?.label;
+    const saved = result.data?.saved;
     return (
       <View style={sr.card}>
         <Text style={{ color: '#4ADE80', fontSize: 32, textAlign: 'center' }}>✅</Text>
-        <Text style={sr.title}>PHOTO ENREGISTRÉE</Text>
-        <Text style={{ color: '#9A8060', fontSize: 12, textAlign: 'center', marginTop: 8 }}>Étiquette sanitaire sauvegardée</Text>
+        <Text style={sr.title}>ÉTIQUETTE ANALYSÉE</Text>
+        {label?.nom ? (
+          <Text style={{ color: '#F5F5DC', fontSize: 14, textAlign: 'center', marginTop: 4 }}>
+            {label.nom}
+          </Text>
+        ) : null}
+        {label?.dlc ? (
+          <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 10 }}>
+            <Text style={{ color: '#9A8060', fontSize: 11 }}>DLC :</Text>
+            <Text style={{ color: '#D4AF37', fontSize: 16, fontWeight: 'bold' }}>{label.dlc}</Text>
+          </View>
+        ) : null}
+        {label?.lot ? (
+          <Text style={{ color: '#6B6050', fontSize: 11, textAlign: 'center', marginTop: 6 }}>
+            Lot : {label.lot}
+          </Text>
+        ) : null}
+        <Text style={{ color: '#9A8060', fontSize: 11, textAlign: 'center', marginTop: 10, fontStyle: 'italic' }}>
+          {saved ? '📅 DLC enregistrée · alertes actives à J-3' : 'Photo sauvegardée (DLC non détectée)'}
+        </Text>
       </View>
     );
   }
