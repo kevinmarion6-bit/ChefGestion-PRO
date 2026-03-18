@@ -332,10 +332,21 @@ router.post('/temperature', requireAuth, upload.single('image'), async (req: Aut
 
 // ─── POST /api/scan/haccp-update ───────────────────────────
 router.post('/haccp-update', requireAuth, async (req: AuthRequest, res: Response) => {
-  const { date, periode, valeur } = req.body;
+  const { date, periode, valeur, fridge_id, commentaire } = req.body;
   const userId = req.userId!;
-
+ 
   try {
+    // Récupère le nom du frigo si fourni
+    let fridge_nom = '';
+    if (fridge_id) {
+      const { data: fridge } = await supabase
+        .from('fridges')
+        .select('nom')
+        .eq('id', fridge_id)
+        .single();
+      fridge_nom = fridge?.nom ?? '';
+    }
+ 
     const { error } = await supabase
       .from('temperature_logs')
       .upsert({
@@ -343,9 +354,12 @@ router.post('/haccp-update', requireAuth, async (req: AuthRequest, res: Response
         date,
         periode,
         valeur,
-        type_afficheur: 'Correction manuelle'
-      }, { onConflict: 'user_id,date,periode' });
-
+        fridge_id: fridge_id || null,
+        fridge_nom,
+        commentaire: commentaire || '',
+        type_afficheur: 'Correction manuelle',
+      }, { onConflict: 'user_id,fridge_id,date,periode' });
+ 
     if (error) throw error;
     res.json({ ok: true });
   } catch (err) {
@@ -415,6 +429,66 @@ router.get('/haccp-logs', requireAuth, async (req: AuthRequest, res: Response) =
   } catch (err) {
     console.error('[/haccp-logs]', err);
     res.status(500).json({ ok: false, error: 'Erreur récupération logs' });
+  }
+});
+
+// ─── POST /api/scan/haccp-label ────────────────────────────
+// Scan d'étiquette HACCP avec extraction DLC par Gemini
+router.post('/haccp-label', requireAuth, upload.single('image'), async (req: AuthRequest, res: Response) => {
+  if (!req.file) { res.status(400).json({ ok: false, error: 'Image requise' }); return; }
+  try {
+    const apiKey = getApiKey();
+    const b64 = req.file.buffer.toString('base64');
+ 
+    const prompt = `Tu es un expert en lecture d'étiquettes alimentaires HACCP.
+Analyse cette image d'étiquette et extrais les informations suivantes.
+Réponds UNIQUEMENT en JSON valide (sans markdown) :
+{"nom":"nom du produit","dlc":"YYYY-MM-DD","lot":"numéro de lot si visible","fournisseur":"si visible"}
+Si la DLC n'est pas lisible, mets null pour dlc.`;
+ 
+    const raw = await enqueueGemini(() => callGemini(apiKey, prompt, b64, req.file!.mimetype));
+    const data = parseGeminiJSON<{ nom: string; dlc: string | null; lot: string; fournisseur: string }>(raw);
+ 
+    if (!data) {
+      res.status(422).json({ ok: false, error: 'Lecture étiquette échouée' });
+      return;
+    }
+ 
+    // Sauvegarder le produit DLC si une date est extraite
+    if (data.dlc) {
+      await supabase.from('dlc_products').insert({
+        user_id: req.userId!,
+        nom: data.nom || 'Produit inconnu',
+        dlc: data.dlc,
+        lot: data.lot || '',
+      });
+    }
+ 
+    // Aussi uploader la photo HACCP comme avant
+    const storagePath = `${req.userId}/${Date.now()}.jpg`;
+    await supabase.storage
+      .from('haccp-photos')
+      .upload(storagePath, req.file.buffer, { contentType: req.file.mimetype, upsert: false });
+ 
+    await supabase
+      .from('haccp_photos')
+      .insert({
+        user_id: req.userId!,
+        name: data.nom || `Étiquette_${new Date().toLocaleDateString('fr-FR').replace(/\//g, '-')}`,
+        date: new Date().toLocaleDateString('fr-FR'),
+        storage_path: storagePath,
+      });
+ 
+    res.json({
+      ok: true,
+      data: {
+        label: data,
+        saved: !!data.dlc,
+      },
+    });
+  } catch (err) {
+    console.error('[/scan/haccp-label]', err);
+    res.status(500).json({ ok: false, error: 'Erreur serveur' });
   }
 });
 

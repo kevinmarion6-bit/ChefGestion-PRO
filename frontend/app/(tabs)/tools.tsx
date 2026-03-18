@@ -79,7 +79,7 @@ const { user } = useApp();
   const [recCat, setRecCat] = useState('plat');
   const [recipes, setRecipes] = useState<any[]>([]);
   const [recLoading, setRecLoading] = useState(false);
-
+  const [recShowCount, setRecShowCount] = useState(3);
   // ─── MARGE CALC ─────
   function margeCalc() {
     const pv = parseFloat(mPV) || 0;
@@ -158,6 +158,7 @@ const { user } = useApp();
       // On utilise la fonction Scan.recipes définie dans ton api.ts
       const data = await Scan.recipes(recStyle, recCat);
       setRecipes(data || []);
+      setRecShowCount(3);
     } catch (err) {
       console.error(err);
       Alert.alert('Erreur', 'Impossible de générer des idées de recettes.');
@@ -273,17 +274,42 @@ const { user } = useApp();
           <View style={{ height: 12 }} />
           <Btn label="✨  Générer des idées" onPress={genRecipes} loading={recLoading} />
 
-          {recipes.map((r, i) => (
-            <View key={i} style={styles.recipeCard}>
-              <Text style={styles.recipeName}>{r.nom}</Text>
-              <Text style={styles.recipeDesc}>{r.description}</Text>
-              <Text style={styles.recipeIngs}>🥕 {(r.ingredients_principaux || []).join(', ')}</Text>
-              <View style={styles.recipeRow}>
-                <Text style={styles.recipeTime}>⏱ {r.temps_preparation} · {r.difficulte}</Text>
-                <Text style={styles.recipePrice}>~{r.suggestion_prix}€</Text>
-              </View>
-            </View>
-          ))}
+          {recipes.slice(0, recShowCount).map((r, i) => (
+  <View key={i} style={styles.recipeCard}>
+    <Text style={styles.recipeName}>{r.nom}</Text>
+    <Text style={styles.recipeDesc}>{r.description}</Text>
+    <Text style={styles.recipeIngs}>🥕 {(r.ingredients_principaux || []).join(', ')}</Text>
+    <View style={styles.recipeRow}>
+      <Text style={styles.recipeTime}>⏱ {r.temps_preparation} · {r.difficulte}</Text>
+      <Text style={styles.recipePrice}>~{r.suggestion_prix}€</Text>
+    </View>
+  </View>
+))}
+
+{recipes.length > recShowCount && (
+  <TouchableOpacity
+    style={{
+      borderWidth: 1,
+      borderColor: 'rgba(212,175,55,0.3)',
+      borderRadius: 8,
+      paddingVertical: 12,
+      alignItems: 'center',
+      marginTop: 12,
+      backgroundColor: 'rgba(212,175,55,0.06)',
+    }}
+    onPress={() => setRecShowCount(prev => Math.min(prev + 3, recipes.length))}
+  >
+    <Text style={{
+      color: Colors.gold,
+      fontFamily: 'Cinzel_400Regular',
+      fontSize: 10,
+      letterSpacing: 1.5,
+      textTransform: 'uppercase',
+    }}>
+      ✨ Voir Plus ({recipes.length - recShowCount} restantes)
+    </Text>
+  </TouchableOpacity>
+)}
         </Accordion>
 
       </ScrollView>

@@ -1,9 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import {
-  View, Text, ScrollView, TouchableOpacity, Image, StyleSheet,
-  TextInput, Alert, Modal, ActivityIndicator, useWindowDimensions,
-  KeyboardAvoidingView, Platform,
-} from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Image, StyleSheet, TextInput, Alert, Modal, ActivityIndicator, useWindowDimensions, KeyboardAvoidingView, Platform, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -30,17 +26,17 @@ const TYPES = [
 function getFrameConfig(scanType: ScanType, frameWidth: number) {
   switch (scanType) {
     case 'temperature':
-      return { height: 160,        borderColor: '#D4AF37',              label: "CADREZ L'AFFICHEUR LED" };
+      return { height: 160,        borderColor: '#D4AF37',              label: "CADREZ L'AFFICHEUR DE TEMPÉRATURE" };
     case 'haccp':
       return { height: frameWidth, borderColor: '#D4AF37',              label: "CADREZ L'ÉTIQUETTE"     };
     case 'factures':
-      return { height: 340,        borderColor: 'rgba(255,255,255,0.9)', label: 'CADREZ LE DOCUMENT A4' };
+      return { height: Math.round(frameWidth * 1.414), borderColor: 'rgba(255,255,255,0.9)', label: 'CADREZ LA FACTURE' };    
     case 'carte':
-      return { height: 340,        borderColor: 'rgba(255,255,255,0.9)', label: 'CADREZ LA CARTE'       };
-  }
+      return { height: Math.round(frameWidth * 1.414), borderColor: 'rgba(255,255,255,0.9)', label: 'CADREZ LA CARTE' };  }
 }
 
 export default function ScannerScreen() {
+
   const { refreshDashboard } = useApp();
   const { width: winWidth, height: winHeight } = useWindowDimensions();
   const FRAME_WIDTH = winWidth * 0.85;
@@ -233,8 +229,17 @@ export default function ScannerScreen() {
   return (
     <SafeAreaView style={s.safe}>
       <View style={s.header}>
-        <Text style={s.title}>Scanner OCR</Text>
-        <Text style={s.sub}>Analyse IA · Gemini Vision</Text>
+  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+    <Image
+      source={require('../../assets/logo.png')}
+      style={{ width: 28, height: 28, borderRadius: 6, marginRight: 10 }}
+      resizeMode="contain"
+    />
+    <View>
+      <Text style={s.title}>Scanner OCR</Text>
+      <Text style={s.sub}>Analyse IA · Gemini Vision</Text>
+    </View>
+  </View>
       </View>
       <Modal visible={loading} transparent animationType="fade">
         <View style={s.overlay}>

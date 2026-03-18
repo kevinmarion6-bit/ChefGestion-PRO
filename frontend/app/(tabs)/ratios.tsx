@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Spacing } from '@/constants/Theme';
 import { SectionTitle } from '@/components/UI';
 import { useApp } from '@/lib/context';
+import { Image } from 'react-native';
 
 const NATIONAL = {
   coutMatiere:    { lbl: 'Ratio Coût Matière',   nat: 30, unit: '%', min: 25, max: 35 },
@@ -17,7 +18,7 @@ const NATIONAL = {
 export default function RatiosScreen() {
   const { state } = useApp();
   // FIX : state?.invoices peut être undefined au chargement
-  const invoices = state?.invoices ?? [];
+  const invoices = state?.recentInvoices ?? [];
   const hasData = invoices.length > 0;
 
   const userV: Record<string, number | null> = {
@@ -32,6 +33,11 @@ export default function RatiosScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
+        <Image
+  source={require('../../assets/logo.png')}
+  style={{ width: 28, height: 28, borderRadius: 6, marginRight: 10 }}
+  resizeMode="contain"
+/>
         <Text style={styles.headerTitle}>Indicateurs & Ratios</Text>
         <Text style={styles.headerSub}>Performance vs moyennes nationales</Text>
       </View>

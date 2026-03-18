@@ -102,6 +102,29 @@ export interface PriceAlert {
   createdAt: string;
 }
 
+export interface TempAlert {
+  fridge: string;
+  valeur: number;
+  periode: string;
+  isFreezer: boolean;
+}
+ 
+export interface DlcAlert {
+  id: string;
+  nom: string;
+  dlc: string;
+  lot: string;
+  joursRestants: number;
+}
+ 
+export interface TempCheckStatus {
+  currentService: 'MIDI' | 'SOIR';
+  totalFridges: number;
+  completedFridges: number;
+  isComplete: boolean;
+  missingFridges: string[];
+}
+ 
 export interface DashboardData {
   kpis: {
     totalCoutHT: number;
@@ -113,6 +136,15 @@ export interface DashboardData {
   };
   recentInvoices: Invoice[];
   recentAlerts: PriceAlert[];
+  tempAlerts: { fridge: string; valeur: number; periode: string; isFreezer: boolean }[];
+  dlcAlerts: { id: string; nom: string; dlc: string; lot: string; joursRestants: number }[];
+  tempCheckStatus: {
+    currentService: 'MIDI' | 'SOIR';
+    totalFridges: number;
+    completedFridges: number;
+    isComplete: boolean;
+    missingFridges: string[];
+  };
 }
 
 export interface GeminiTemperature {
@@ -221,6 +253,20 @@ export const Scan = {
       body: JSON.stringify({ style, categorie }),
     });
   },
+
+
+  async haccpLabel(imageUri: string): Promise<{ label: any; saved: boolean }> {
+    const fd = await uriToFormData(imageUri, 'image');
+    return apiUpload('/scan/haccp-label', fd);
+  },
+ 
+  async exportHaccpPdf(year: number, month: number): Promise<{ url: string }> {
+    return apiFetch('/scan/haccp-export', {
+     method: 'POST',
+     body: JSON.stringify({ year, month }),
+    });
+  },
+
 };
 
 // ─── INVOICES ────────────────────────────────────────────

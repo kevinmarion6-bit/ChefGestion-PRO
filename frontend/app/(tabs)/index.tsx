@@ -1,31 +1,46 @@
-import React, { useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, Image, StyleSheet, RefreshControl, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '@/lib/context';
 
-const C = { black: '#000', blackS: '#0C0C0C', charcoal: '#1A1A1A', gold: '#D4AF37', goldL: '#EAD06A', goldD: '#A07D1C', bronze: '#CD7F32', cream: '#F5F5DC', creamD: '#EDE8D0', muted: '#6B6050', mutedL: '#8A7A60', ok: '#4ADE80', warn: '#FACC15', bad: '#F87171' };
+const C = { black: '#000', blackS: '#0C0C0C', charcoal: '#1A1A1A', gold: '#D4AF37', goldL: '#EAD06A', goldD: '#A07D1C', bronze: '#CD7F32', cream: '#F5F5DC', creamD: '#EDE8D0', muted: '#6B6050', mutedL: '#8A7A60', ok: '#4ADE80', warn: '#FACC15', bad: '#F87171', blue: '#60A5FA' };
 
 export default function DashboardScreen() {
-  const { user, dashboard, refreshDashboard, isLoggedIn } = useApp();
+  const { user, dashboard, refreshDashboard } = useApp();
   const [refreshing, setRefreshing] = React.useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
 
   const onRefresh = async () => { setRefreshing(true); await refreshDashboard(); setRefreshing(false); };
 
-  const initials = user?.name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase() ?? 'C';
+  const initials = user?.name?.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase() ?? 'C';
   const kpis = dashboard?.kpis;
+
+  // Données nouvelles depuis le dashboard enrichi
+  const tempAlerts = (dashboard as any)?.tempAlerts ?? [];
+  const dlcAlerts = (dashboard as any)?.dlcAlerts ?? [];
+  const tempCheckStatus = (dashboard as any)?.tempCheckStatus ?? null;
 
   return (
     <SafeAreaView style={s.safe}>
+      {/* ─── EN-TÊTE AVEC LOGO (Modification 5) ──────────── */}
       <View style={s.header}>
-        <View>
-          <Text style={s.title}>Tableau de Bord</Text>
-          <Text style={s.sub}>{new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long' })}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+          <Image
+            source={require('../../assets/logo.png')}
+            style={s.logo}
+            resizeMode="contain"
+          />
+          <View style={{ marginLeft: 10 }}>
+            <Text style={s.title}>Tableau de Bord</Text>
+            <Text style={s.sub}>{new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long' })}</Text>
+          </View>
         </View>
         <View style={s.avatar}><Text style={s.avatarTxt}>{initials}</Text></View>
       </View>
 
       <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.gold} />} contentContainerStyle={s.content}>
 
+        {/* ─── KPI ROW 1 ─────────────────────────────────── */}
         <View style={s.kpiRow}>
           <KPI icon="💶" label="Coût matière HT" value={kpis ? `${kpis.totalCoutHT.toFixed(0)}€` : '—'} hint="factures scannées" />
           <View style={{ width: 10 }} />
@@ -37,6 +52,59 @@ export default function DashboardScreen() {
           <KPI icon="⚠️" label="Alertes prix" value={String(kpis?.alertsCount ?? 0)} hint="détectées" />
         </View>
 
+        {/* ─── MODULE ALERTES TEMPÉRATURE (Modification 2) ── */}
+        <View style={[s.kpiRow, { marginTop: 10 }]}>
+          <View style={s.alertModule}>
+            <View style={s.alertModuleLine} />
+            <Text style={{ fontSize: 20, marginBottom: 6 }}>🌡️</Text>
+            <Text style={s.alertModuleLabel}>Alertes Température</Text>
+            {tempAlerts.length === 0 ? (
+              <View style={{ alignItems: 'center', marginTop: 4 }}>
+                <Text style={{ fontSize: 16, marginBottom: 2 }}>✅</Text>
+                <Text style={s.alertOkText}>Tout est bien frais Chef !</Text>
+              </View>
+            ) : (
+              tempAlerts.slice(0, 3).map((a: any, i: number) => (
+                <View key={i} style={s.alertTempRow}>
+                  <Text style={{ fontSize: 12 }}>{a.isFreezer ? '🧊' : '❄️'}</Text>
+                  <Text style={s.alertTempName} numberOfLines={1}>{a.fridge}</Text>
+                  <Text style={[s.alertTempVal, { color: C.bad }]}>{a.valeur}°C</Text>
+                </View>
+              ))
+            )}
+          </View>
+
+          <View style={{ width: 10 }} />
+
+          {/* ─── MODULE ALERTES DLC (Modification 3) ────── */}
+          <View style={s.alertModule}>
+            <View style={s.alertModuleLine} />
+            <Text style={{ fontSize: 20, marginBottom: 6 }}>🏷️</Text>
+            <Text style={s.alertModuleLabel}>Alertes DLC</Text>
+            {dlcAlerts.length === 0 ? (
+              <View style={{ alignItems: 'center', marginTop: 4 }}>
+                <Text style={{ fontSize: 16, marginBottom: 2 }}>✅</Text>
+                <Text style={s.alertOkText}>Aucune DLC proche</Text>
+              </View>
+            ) : (
+              dlcAlerts.slice(0, 3).map((a: any, i: number) => (
+                <View key={i} style={s.alertTempRow}>
+                  <Text style={{ fontSize: 12 }}>
+                    {a.joursRestants === 0 ? '🔴' : a.joursRestants === 1 ? '🟠' : '🟡'}
+                  </Text>
+                  <Text style={s.alertTempName} numberOfLines={1}>{a.nom}</Text>
+                  <Text style={[s.alertTempVal, {
+                    color: a.joursRestants === 0 ? C.bad : a.joursRestants <= 1 ? C.warn : C.gold
+                  }]}>
+                    J-{a.joursRestants}
+                  </Text>
+                </View>
+              ))
+            )}
+          </View>
+        </View>
+
+        {/* ─── DERNIÈRES FACTURES ─────────────────────────── */}
         <STitle>Dernières Factures</STitle>
         <View style={s.card}>
           {!dashboard?.recentInvoices?.length ? (
@@ -52,6 +120,7 @@ export default function DashboardScreen() {
           ))}
         </View>
 
+        {/* ─── ALERTES DE PRIX ────────────────────────────── */}
         <STitle>Alertes de Prix</STitle>
         <View style={s.card}>
           {!dashboard?.recentAlerts?.length ? (
@@ -72,6 +141,78 @@ export default function DashboardScreen() {
           ))}
         </View>
 
+        {/* ─── RELEVÉS DE TEMPÉRATURES (Modification 4) ──── */}
+        <STitle>Relevés de Températures</STitle>
+        <View style={s.card}>
+          <View style={{ padding: 16 }}>
+            {/* Statut du service en cours */}
+            <View style={s.tempCheckHeader}>
+              <Text style={{ fontSize: 16 }}>
+                {tempCheckStatus?.currentService === 'MIDI' ? '☀️' : '🌙'}
+              </Text>
+              <Text style={s.tempCheckServiceText}>
+                Service {tempCheckStatus?.currentService ?? '—'}
+              </Text>
+              <View style={[
+                s.tempCheckBadge,
+                { backgroundColor: tempCheckStatus?.isComplete ? 'rgba(74,222,128,0.15)' : 'rgba(248,113,113,0.15)' }
+              ]}>
+                <Text style={{
+                  fontSize: 10, fontFamily: 'Cinzel_700Bold', letterSpacing: 1,
+                  color: tempCheckStatus?.isComplete ? C.ok : C.bad
+                }}>
+                  {tempCheckStatus?.isComplete ? '✅ À JOUR' : '⏳ EN ATTENTE'}
+                </Text>
+              </View>
+            </View>
+
+            {/* Progression */}
+            <View style={s.tempCheckProgress}>
+              <View style={s.tempCheckTrack}>
+                <View style={[s.tempCheckFill, {
+                  width: tempCheckStatus?.totalFridges
+                    ? `${(tempCheckStatus.completedFridges / tempCheckStatus.totalFridges) * 100}%`
+                    : '0%'
+                }]} />
+              </View>
+              <Text style={s.tempCheckCount}>
+                {tempCheckStatus?.completedFridges ?? 0}/{tempCheckStatus?.totalFridges ?? 0} frigos
+              </Text>
+            </View>
+
+            {/* Frigos manquants */}
+            {tempCheckStatus?.missingFridges?.length > 0 && (
+              <View style={{ marginTop: 8 }}>
+                {tempCheckStatus.missingFridges.map((name: string, i: number) => (
+                  <View key={i} style={s.missingFridgeRow}>
+                    <Text style={{ fontSize: 10, color: C.bad }}>⚠️</Text>
+                    <Text style={s.missingFridgeName}>{name}</Text>
+                    <Text style={s.missingFridgeHint}>non relevé</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Toggle notification push */}
+            <View style={s.pushRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.pushLabel}>🔔  Notifications push</Text>
+                <Text style={s.pushHint}>
+                  Rappel à {tempCheckStatus?.currentService === 'MIDI' ? '14h30' : '22h30'} si oubli
+                </Text>
+              </View>
+              <Switch
+                value={pushEnabled}
+                onValueChange={setPushEnabled}
+                trackColor={{ false: '#333', true: 'rgba(212,175,55,0.3)' }}
+                thumbColor={pushEnabled ? C.gold : '#666'}
+                ios_backgroundColor="#333"
+              />
+            </View>
+          </View>
+        </View>
+
+        <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -110,6 +251,7 @@ function Empty({ icon, text }: { icon: string; text: string }) {
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.blackS },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, backgroundColor: C.charcoal, borderBottomWidth: 1, borderBottomColor: 'rgba(212,175,55,0.1)' },
+  logo: { width: 34, height: 34, borderRadius: 8 },
   title: { fontFamily: 'Cinzel_700SemiBold', fontSize: 18, color: C.cream },
   sub: { fontSize: 12, color: C.muted, fontStyle: 'italic', marginTop: 2 },
   avatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: C.goldD, borderWidth: 1, borderColor: C.gold, alignItems: 'center', justifyContent: 'center' },
@@ -121,9 +263,32 @@ const s = StyleSheet.create({
   kpiLabel: { fontFamily: 'Cinzel_400Regular', fontSize: 7, letterSpacing: 1.5, textTransform: 'uppercase', color: C.mutedL, marginBottom: 4 },
   kpiVal: { fontFamily: 'DMSans_400Regular', fontSize: 22, color: C.gold, lineHeight: 26 },
   kpiHint: { fontSize: 11, color: C.muted, fontStyle: 'italic', marginTop: 3 },
+
+  alertModule: { flex: 1, backgroundColor: C.charcoal, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(212,175,55,0.15)', padding: 14, overflow: 'hidden', minHeight: 120 },
+  alertModuleLine: { position: 'absolute', top: 0, left: '20%', right: '20%', height: 1, backgroundColor: C.gold },
+  alertModuleLabel: { fontFamily: 'Cinzel_400Regular', fontSize: 7, letterSpacing: 1.5, textTransform: 'uppercase', color: C.mutedL, marginBottom: 6 },
+  alertOkText: { fontFamily: 'DMSans_400Regular', fontSize: 12, color: C.ok, fontStyle: 'italic' },
+  alertTempRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 3 },
+  alertTempName: { flex: 1, fontSize: 11, color: C.cream, fontFamily: 'DMSans_400Regular' },
+  alertTempVal: { fontSize: 12, fontFamily: 'DMSans_400Regular', fontWeight: 'bold' },
+
   card: { backgroundColor: C.charcoal, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(212,175,55,0.13)', overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.04)' },
   rowTitle: { fontSize: 15, color: C.cream },
   rowSub: { fontSize: 12, color: C.muted, fontStyle: 'italic', marginTop: 2 },
   rowRight: { fontFamily: 'DMSans_400Regular', fontSize: 14, color: C.gold },
+
+  tempCheckHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  tempCheckServiceText: { fontFamily: 'Cinzel_400Regular', fontSize: 12, color: C.cream, flex: 1, letterSpacing: 1 },
+  tempCheckBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  tempCheckProgress: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 },
+  tempCheckTrack: { flex: 1, height: 6, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden' },
+  tempCheckFill: { height: '100%', backgroundColor: C.gold, borderRadius: 3 },
+  tempCheckCount: { fontSize: 11, color: C.muted, fontFamily: 'DMSans_400Regular', minWidth: 80 },
+  missingFridgeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 2 },
+  missingFridgeName: { flex: 1, fontSize: 11, color: C.cream, fontFamily: 'DMSans_400Regular' },
+  missingFridgeHint: { fontSize: 10, color: C.bad, fontStyle: 'italic' },
+  pushRow: { flexDirection: 'row', alignItems: 'center', marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: 'rgba(212,175,55,0.1)' },
+  pushLabel: { fontSize: 12, color: C.cream, fontFamily: 'DMSans_400Regular' },
+  pushHint: { fontSize: 10, color: C.muted, fontStyle: 'italic', marginTop: 2 },
 });

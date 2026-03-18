@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View, Text, ScrollView, TouchableOpacity, TextInput,
-  Image, StyleSheet, Alert, ActivityIndicator
-} from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Image, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
@@ -32,6 +29,11 @@ export default function MoreScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
+        <Image
+  source={require('../../assets/logo.png')}
+  style={{ width: 28, height: 28, borderRadius: 6, marginRight: 10 }}
+  resizeMode="contain"
+/>
         <Text style={styles.headerTitle}>Plus</Text>
         <Text style={styles.headerSub}>Navigation & Configuration</Text>
       </View>
