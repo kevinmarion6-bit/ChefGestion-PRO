@@ -176,7 +176,7 @@ const { user } = useApp();
   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
     <Image
       source={require('../../assets/logo.png')}
-      style={{ width: 28, height: 28, borderRadius: 6, marginRight: 10 }}
+      style={{ width: 34, height: 34, borderRadius: 8, marginRight: 10 }}
       resizeMode="contain"
     />
     <View>

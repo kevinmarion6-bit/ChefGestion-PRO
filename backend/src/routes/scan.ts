@@ -357,7 +357,6 @@ router.post('/haccp-update', requireAuth, async (req: AuthRequest, res: Response
         fridge_id: fridge_id || null,
         fridge_nom,
         commentaire: commentaire || '',
-        type_afficheur: 'Correction manuelle',
       }, { onConflict: 'user_id,fridge_id,date,periode' });
  
     if (error) throw error;

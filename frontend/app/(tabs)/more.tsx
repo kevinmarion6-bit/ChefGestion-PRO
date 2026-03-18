@@ -28,14 +28,16 @@ export default function MoreScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <Image
-  source={require('../../assets/logo.png')}
-  style={{ width: 28, height: 28, borderRadius: 6, marginRight: 10 }}
-  resizeMode="contain"
-/>
+      <View style={[styles.header, { flexDirection: 'row', alignItems: 'center' }]}>
+  <Image
+    source={require('../../assets/logo.png')}
+    style={{ width: 34, height: 34, borderRadius: 8, marginRight: 10 }}
+    resizeMode="contain"
+  />
+  <View>
         <Text style={styles.headerTitle}>Plus</Text>
         <Text style={styles.headerSub}>Navigation & Configuration</Text>
+      </View>
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>

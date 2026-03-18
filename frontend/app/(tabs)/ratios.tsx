@@ -32,15 +32,17 @@ export default function RatiosScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <Image
-  source={require('../../assets/logo.png')}
-  style={{ width: 28, height: 28, borderRadius: 6, marginRight: 10 }}
-  resizeMode="contain"
-/>
-        <Text style={styles.headerTitle}>Indicateurs & Ratios</Text>
-        <Text style={styles.headerSub}>Performance vs moyennes nationales</Text>
-      </View>
+      <View style={[styles.header, { flexDirection: 'row', alignItems: 'center' }]}>
+  <Image
+    source={require('../../assets/logo.png')}
+    style={{ width: 34, height: 34, borderRadius: 8, marginRight: 10 }}
+    resizeMode="contain"
+  />
+  <View>
+    <Text style={styles.headerTitle}>Indicateurs & Ratios</Text>
+    <Text style={styles.headerSub}>Performance vs moyennes nationales</Text>
+  </View>
+</View>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.legend}>
           <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: Colors.gold }]} /><Text style={styles.legendTxt}>Votre restaurant</Text></View>

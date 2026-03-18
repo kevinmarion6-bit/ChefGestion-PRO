@@ -242,7 +242,7 @@ export default function ScannerScreen() {
   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
     <Image
       source={require('../../assets/logo.png')}
-      style={{ width: 28, height: 28, borderRadius: 6, marginRight: 10 }}
+      style={{ width: 34, height: 34, borderRadius: 8, marginRight: 10 }}
       resizeMode="contain"
     />
     <View>
@@ -422,7 +422,7 @@ function ScanResult({ result }: { result: any }) {
 
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#000' },
-  header: { padding: 20, backgroundColor: '#0C0C0C', borderBottomWidth: 1, borderBottomColor: '#1A1A1A' },
+  header: { flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: '#1A1A1A', borderBottomWidth: 1, borderBottomColor: 'rgba(212,175,55,0.1)' },
   title: { fontSize: 20, color: '#F5F5DC', fontFamily: 'Cinzel_700Bold' },
   sub: { fontSize: 12, color: '#6B6050', fontFamily: 'DMSans_400Regular' },
   content: { padding: 16, paddingBottom: 40 },
