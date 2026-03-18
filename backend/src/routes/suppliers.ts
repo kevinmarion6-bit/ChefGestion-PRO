@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { supabase } from '../services/supabase';
 import { requireAuth, AuthRequest } from '../middleware/auth';
+import { getRestaurantUserIds } from '../services/restaurantHelper';
 
 const router = Router();
 
@@ -9,7 +10,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
   const { data, error } = await supabase
     .from('suppliers')
     .select('*, supplier_products(*)')
-    .eq('user_id', req.userId!)
+    .in('user_id', await getRestaurantUserIds(req.userId!))
     .order('name');
 
   if (error) { res.status(500).json({ ok: false, error: error.message }); return; }
@@ -56,7 +57,7 @@ router.get('/bestprices', requireAuth, async (req: AuthRequest, res: Response) =
   const { data, error } = await supabase
     .from('supplier_products')
     .select('name, unit, price, suppliers!inner(name)')
-    .eq('user_id', req.userId!);
+    .in('user_id', await getRestaurantUserIds(req.userId!));
 
   if (error) { res.status(500).json({ ok: false, error: error.message }); return; }
 

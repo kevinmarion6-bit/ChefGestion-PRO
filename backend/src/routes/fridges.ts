@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { supabase } from '../services/supabase';
 import { requireAuth, AuthRequest } from '../middleware/auth';
+import { getRestaurantUserIds } from '../services/restaurantHelper';
 
 const router = Router();
 
@@ -10,7 +11,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
     const { data, error } = await supabase
       .from('fridges')
       .select('*')
-      .eq('user_id', req.userId!)
+      .in('user_id', await getRestaurantUserIds(req.userId!))
       .eq('actif', true)
       .order('created_at', { ascending: true });
 

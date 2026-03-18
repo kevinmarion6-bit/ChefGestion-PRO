@@ -347,11 +347,11 @@ function RestaurantPage({ goBack }: { goBack: () => void }) {
               <TextInput style={restStyles.fieldInput} value={adresse} onChangeText={setAdresse} placeholder="12 rue de la Cuisine, 75001 Paris" placeholderTextColor="#555" />
             </View>
             <View>
-              <Text style={restStyles.fieldLabel}>Téléphone</Text>
+              <Text style={restStyles.fieldLabel}>N° Téléphone (Optionnel)</Text>
               <TextInput style={restStyles.fieldInput} value={telephone} onChangeText={setTelephone} placeholder="01 23 45 67 89" placeholderTextColor="#555" keyboardType="phone-pad" />
             </View>
             <View>
-              <Text style={restStyles.fieldLabel}>SIRET (optionnel)</Text>
+              <Text style={restStyles.fieldLabel}>N° SIRET (Optionnel)</Text>
               <TextInput style={restStyles.fieldInput} value={siret} onChangeText={setSiret} placeholder="123 456 789 00012" placeholderTextColor="#555" keyboardType="numeric" />
             </View>
           </Card>
@@ -381,7 +381,7 @@ function RestaurantPage({ goBack }: { goBack: () => void }) {
       <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingTop: 30 }]}>
 
         <View style={{ alignItems: 'center', marginBottom: 30 }}>
-          <Text style={{ fontSize: 56 }}>🍽️</Text>
+          <Text style={{ fontSize: 75 }}>🍽️</Text>
           <Text style={{ color: Colors.cream, fontSize: 18, fontFamily: 'Cinzel_700Bold', marginTop: 12, textAlign: 'center' }}>Session Restaurant</Text>
           <Text style={{ color: Colors.muted, fontSize: 13, textAlign: 'center', marginTop: 8, lineHeight: 20, paddingHorizontal: 20 }}>
             Travaillez en équipe ! Partagez factures, températures et HACCP avec vos collaborateurs en temps réel.
@@ -416,7 +416,7 @@ function RestaurantPage({ goBack }: { goBack: () => void }) {
           <Text style={restStyles.createLinkText}>Je n'ai pas de code d'invitation</Text>
           <Text style={restStyles.createLinkCta}>Créer un Restaurant →</Text>
           <Text style={restStyles.createLinkHint}>
-            (Permets de créer et enregistrer une nouvelle session de restaurant afin que plusieurs collaborateurs puissent s'y connecter)
+            (Permets de créer et enregistrer une nouvelle session de restaurant afin que plusieurs collaborateurs puissent s'y connecter et travailler avec)
           </Text>
         </TouchableOpacity>
 

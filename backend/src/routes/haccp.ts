@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import multer from 'multer';
 import { supabase } from '../services/supabase';
 import { requireAuth, AuthRequest } from '../middleware/auth';
+import { getRestaurantUserIds } from '../services/restaurantHelper';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
@@ -11,7 +12,7 @@ router.get('/photos', requireAuth, async (req: AuthRequest, res: Response) => {
   const { data, error } = await supabase
     .from('haccp_photos')
     .select('id, name, date, storage_path, created_at')
-    .eq('user_id', req.userId!)
+    .in('user_id', await getRestaurantUserIds(req.userId!))
     .order('created_at', { ascending: false });
 
   if (error) { res.status(500).json({ ok: false, error: error.message }); return; }
@@ -82,7 +83,7 @@ router.get('/alerts', requireAuth, async (req: AuthRequest, res: Response) => {
   const { data, error } = await supabase
     .from('price_alerts')
     .select('*')
-    .eq('user_id', req.userId!)
+    .in('user_id', await getRestaurantUserIds(req.userId!))
     .order('created_at', { ascending: false });
 
   if (error) { res.status(500).json({ ok: false, error: error.message }); return; }

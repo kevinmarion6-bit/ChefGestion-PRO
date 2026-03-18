@@ -249,4 +249,57 @@ router.post('/leave', requireAuth, async (req: AuthRequest, res: Response) => {
   }
 });
 
+// ─── DELETE /api/restaurant/members/:id ──────────────────
+router.delete('/members/:id', requireAuth, async (req: AuthRequest, res: Response) => {
+  const uid = req.userId!;
+  const memberId = req.params.id;
+
+  try {
+    // Vérifier que le demandeur est owner
+    const { data: profile } = await supabase
+      .from('profiles').select('restaurant_id').eq('id', uid).single();
+
+    if (!profile?.restaurant_id) {
+      return res.status(400).json({ ok: false, error: 'Pas dans un restaurant.' });
+    }
+
+    const { data: restaurant } = await supabase
+      .from('restaurants').select('owner_id').eq('id', profile.restaurant_id).single();
+
+    if (restaurant?.owner_id !== uid) {
+      return res.status(403).json({ ok: false, error: 'Seul le Chef peut retirer un membre.' });
+    }
+
+    // Empêcher de se supprimer soi-même
+    if (memberId === uid) {
+      return res.status(400).json({ ok: false, error: 'Vous ne pouvez pas vous retirer vous-même.' });
+    }
+
+    // Vérifier que le membre est bien dans ce restaurant
+    const { data: member } = await supabase
+      .from('restaurant_members')
+      .select('id')
+      .eq('restaurant_id', profile.restaurant_id)
+      .eq('user_id', memberId)
+      .single();
+
+    if (!member) {
+      return res.status(404).json({ ok: false, error: 'Membre introuvable.' });
+    }
+
+    // Supprimer le membre
+    await supabase.from('restaurant_members').delete()
+      .eq('restaurant_id', profile.restaurant_id)
+      .eq('user_id', memberId);
+
+    // Retirer le restaurant_id du profil du membre
+    await supabase.from('profiles').update({ restaurant_id: null }).eq('id', memberId);
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[/restaurant/members DELETE]', err);
+    res.status(500).json({ ok: false, error: 'Erreur serveur' });
+  }
+});
+
 export default router;

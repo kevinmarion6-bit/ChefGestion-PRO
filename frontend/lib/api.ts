@@ -373,7 +373,12 @@ export interface RestaurantData {
 
 export const Restaurant = {
   async get() {
-    return apiFetch<RestaurantData | null>('/restaurant');
+    const res = await apiFetch<any>('/restaurant');
+    // apiFetch retourne { ok, data } quand data est null, il faut extraire
+    if (res === null || res === undefined) return null;
+    if (typeof res === 'object' && 'nom' in res) return res as RestaurantData;
+    if (typeof res === 'object' && res.data === null) return null;
+    return res as RestaurantData | null;
   },
 
   async create(data: { nom: string; adresse?: string; telephone?: string; siret?: string }) {

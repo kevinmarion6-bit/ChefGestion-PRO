@@ -5,6 +5,7 @@ import { supabase } from '../services/supabase';
 import { requireAuth, AuthRequest } from '../middleware/auth';
 import { callGemini, callVision, enqueueGemini, PROMPTS, parseGeminiJSON } from '../services/gemini';
 import { GeminiInvoice, GeminiTemperature, GeminiCarte } from '../types';
+import { getRestaurantUserIds } from '../services/restaurantHelper';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -388,7 +389,7 @@ router.post('/recipes', requireAuth, async (req: AuthRequest, res: Response) => 
   const { style = 'bistronomique', categorie = 'plat' } = req.body;
   try {
     const { data: products } = await supabase
-      .from('price_db').select('product_nom').eq('user_id', req.userId!).limit(15);
+      .from('price_db').select('product_nom').in('user_id', await getRestaurantUserIds(req.userId!)).limit(15);
     const productList = (products ?? []).map((p: any) => p.product_nom).join(', ') || 'bœuf, bar, crème fraîche, beurre, échalotes';
 
     const apiKey = getApiKey();
@@ -418,7 +419,7 @@ router.get('/haccp-logs', requireAuth, async (req: AuthRequest, res: Response) =
     const { data, error } = await supabase
       .from('temperature_logs')
       .select('*')
-      .eq('user_id', req.userId!)
+      .in('user_id', await getRestaurantUserIds(req.userId!))
       .gte('date', startDate)
       .lte('date', endDate)
       .order('date', { ascending: true });
