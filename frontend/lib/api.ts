@@ -350,6 +350,70 @@ export const Haccp = {
   },
 };
 
+// ─── RESTAURANT ──────────────────────────────────────────
+
+export interface RestaurantMember {
+  id: string;
+  name: string;
+  role: string;
+  joinedAt: string;
+  isMe: boolean;
+}
+
+export interface RestaurantData {
+  id: string;
+  nom: string;
+  adresse: string;
+  telephone: string;
+  siret: string;
+  isOwner: boolean;
+  members: RestaurantMember[];
+  createdAt: string;
+}
+
+export const Restaurant = {
+  async get() {
+    return apiFetch<RestaurantData | null>('/restaurant');
+  },
+
+  async create(data: { nom: string; adresse?: string; telephone?: string; siret?: string }) {
+    return apiFetch<any>('/restaurant/create', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async invite() {
+    return apiFetch<{ code: string; expiresAt: string; restaurantName: string }>('/restaurant/invite', {
+      method: 'POST',
+    });
+  },
+
+  async join(code: string) {
+    return apiFetch<{ restaurantId: string; restaurantName: string }>('/restaurant/join', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    });
+  },
+
+  async leave() {
+    return apiFetch<any>('/restaurant/leave', {
+      method: 'POST',
+    });
+  },
+
+  async getInviteCode() {
+    return apiFetch<{ code: string }>('/restaurant/invite-code');
+  },
+
+  // C'est cette fonction précise qui corrigera ton erreur ligne 114
+  async removeMember(memberId: string) {
+    return apiFetch<any>(`/restaurant/members/${memberId}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
 // ─── HEALTH ──────────────────────────────────────────────
 
 export async function checkHealth() {

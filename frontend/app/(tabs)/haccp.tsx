@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ActivityIndicator, ScrollView,
   Alert, Modal, TextInput, TouchableOpacity, Image,
+  Keyboard, TouchableWithoutFeedback,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -26,6 +27,8 @@ export default function HaccpScreen() {
 
   const now          = new Date();
   const viewMonthStr = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
+  const MOIS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const viewMonthLabel = `${MOIS_FR[now.getMonth()]} ${now.getFullYear()}`;
   const daysInMonth  = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
   const todayStr     = now.toISOString().split('T')[0];
 
@@ -55,8 +58,8 @@ export default function HaccpScreen() {
     try {
       const token = await getToken();
       if (!token) return;
-      const res = await fetch(`${API_URL}/api/fridges`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+      const res = await fetch(`${API_URL}/api/fridges?t=${Date.now()}`, {
+        headers: { 'Authorization': `Bearer ${token}`, 'Cache-Control': 'no-cache' },
       });
       const json = await res.json();
       if (json.ok) setFridges(json.data ?? []);
@@ -72,8 +75,8 @@ export default function HaccpScreen() {
       const token = await getToken();
       if (!token) return;
       const response = await fetch(
-        `${API_URL}/api/scan/haccp-logs?year=${now.getFullYear()}&month=${(now.getMonth() + 1).toString().padStart(2, '0')}`,
-        { headers: { 'Authorization': `Bearer ${token}` } }
+        `${API_URL}/api/scan/haccp-logs?year=${now.getFullYear()}&month=${(now.getMonth() + 1).toString().padStart(2, '0')}&t=${Date.now()}`,
+        { headers: { 'Authorization': `Bearer ${token}`, 'Cache-Control': 'no-cache' } }
       );
       const json = await response.json();
       if (json.ok) setLogs(json.data ?? []);
@@ -181,10 +184,13 @@ export default function HaccpScreen() {
 
   // ─── EXPORT PDF ──────────────────────────────────────────
   const exportPdf = async () => {
-    const monthLabel = viewMonthStr.replace('-', ' / ');
-    let tableHtml = '';
-
     const fridgesToShow = fridges.length > 0 ? fridges : [{ id: null, nom: 'Sans équipement', type: 'positif' }];
+    const logoUrl = 'https://osnckjlgqqawcgduideb.supabase.co/storage/v1/object/public/assets/logo.png';
+
+    // TODO: récupérer depuis le contexte restaurant quand disponible
+    const restaurantName = '';
+
+    let pagesHtml = '';
 
     for (const fridge of fridgesToShow) {
       const fridgeLogs = fridge.id
@@ -192,20 +198,57 @@ export default function HaccpScreen() {
         : logs.filter(l => !l.fridge_id);
       const isFreez = fridge.type === 'negatif' || fridge.nom?.toLowerCase().includes('congél') || fridge.nom?.toLowerCase().includes('surgél');
 
-      tableHtml += `<h2 style="color:#D4AF37;border-bottom:2px solid #D4AF37;padding-bottom:6px;margin-top:24px;">${isFreez ? '🧊' : '❄️'} ${fridge.nom}</h2>`;
-      tableHtml += `<table><thead><tr><th>Jour</th><th>MIDI</th><th>SOIR</th><th>Commentaire</th></tr></thead><tbody>`;
-
+      let rows = '';
       for (let day = 1; day <= daysInMonth; day++) {
         const dateStr = `${viewMonthStr}-${day.toString().padStart(2, '0')}`;
         const midi = fridgeLogs.find(l => l.date === dateStr && l.periode === 'MIDI');
         const soir = fridgeLogs.find(l => l.date === dateStr && l.periode === 'SOIR');
         const comment = midi?.commentaire || soir?.commentaire || '';
-        tableHtml += `<tr><td>${day}</td><td style="color:${getTempColor(midi?.valeur)};font-weight:bold;">${midi ? midi.valeur + '°C' : '--'}</td><td style="color:${getTempColor(soir?.valeur)};font-weight:bold;">${soir ? soir.valeur + '°C' : '--'}</td><td style="font-style:italic;color:#888;">${comment}</td></tr>`;
+        rows += `<tr>
+          <td>${day}</td>
+          <td style="color:${getTempColor(midi?.valeur)};font-weight:bold;">${midi ? midi.valeur + '°C' : '--'}</td>
+          <td style="color:${getTempColor(soir?.valeur)};font-weight:bold;">${soir ? soir.valeur + '°C' : '--'}</td>
+          <td style="font-style:italic;color:#888;font-size:11px;">${comment}</td>
+        </tr>`;
       }
-      tableHtml += `</tbody></table>`;
+
+      pagesHtml += `
+        <div class="page">
+          <div class="page-header">
+            <img src="${logoUrl}" class="logo" />
+            <div class="header-text">
+              <h1>Relevés de Températures HACCP</h1>
+              ${restaurantName ? `<p class="restaurant">${restaurantName}</p>` : ''}
+              <p class="meta">${viewMonthLabel} — Exporté le ${new Date().toLocaleDateString('fr-FR')}</p>
+            </div>
+          </div>
+          <h2>${isFreez ? '🧊' : '❄️'} ${fridge.nom}</h2>
+          <table>
+            <thead><tr><th>Jour</th><th>MIDI</th><th>SOIR</th><th>Commentaire</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>`;
     }
 
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:Georgia,serif;max-width:740px;margin:24px auto;color:#222;}h1{text-align:center;font-size:18px;letter-spacing:3px;border-bottom:2px solid #D4AF37;padding-bottom:12px;}.meta{text-align:center;color:#888;font-size:12px;margin-bottom:20px;}table{width:100%;border-collapse:collapse;margin-bottom:20px;}th{background:#111;color:#D4AF37;padding:8px;font-size:11px;text-align:center;}td{padding:6px 8px;border-bottom:1px solid #eee;text-align:center;font-size:13px;}tr:nth-child(even){background:#f9f9f9;}</style></head><body><h1>RELEVÉS DE TEMPÉRATURES HACCP</h1><p class="meta">Mois : ${monthLabel} — Exporté le ${new Date().toLocaleDateString('fr-FR')}</p>${tableHtml}</body></html>`;
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+      <style>
+        @page { margin: 20px 24px; }
+        body { font-family: Georgia, serif; margin: 0; padding: 0; color: #222; }
+        .page { page-break-after: always; padding: 0; }
+        .page:last-child { page-break-after: auto; }
+        .page-header { display: flex; flex-direction: row; align-items: center; gap: 14px; border-bottom: 2px solid #D4AF37; padding-bottom: 12px; margin-bottom: 16px; }
+        .logo { width: 50px; height: 50px; border-radius: 8px; }
+        .header-text { flex: 1; }
+        h1 { margin: 0; font-size: 16px; letter-spacing: 2px; color: #111; }
+        .restaurant { margin: 2px 0 0; font-size: 13px; color: #D4AF37; font-weight: bold; }
+        .meta { margin: 2px 0 0; color: #888; font-size: 11px; }
+        h2 { color: #D4AF37; font-size: 14px; border-bottom: 1px solid #D4AF37; padding-bottom: 6px; margin: 0 0 10px; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #111; color: #D4AF37; padding: 6px; font-size: 10px; text-align: center; }
+        td { padding: 5px 6px; border-bottom: 1px solid #eee; text-align: center; font-size: 12px; }
+        tr:nth-child(even) { background: #f9f9f9; }
+      </style>
+    </head><body>${pagesHtml}</body></html>`;
 
     try { await Print.printAsync({ html }); } catch { Alert.alert('Erreur', "Impossible d'exporter en PDF."); }
   };
@@ -268,7 +311,7 @@ export default function HaccpScreen() {
           <Image source={require('../../assets/logo.png')} style={{ width: 34, height: 34, borderRadius: 8, marginRight: 10 }} resizeMode="contain" />
           <View>
             <Text style={st.title}>Relevés HACCP</Text>
-            <Text style={st.subtitle}>{viewMonthStr.replace('-', ' / ')}</Text>
+            <Text style={st.subtitle}>{viewMonthLabel}</Text>
           </View>
         </View>
         <TouchableOpacity style={st.exportBtn} onPress={exportPdf}>
@@ -343,8 +386,9 @@ export default function HaccpScreen() {
 
       {/* ─── MODALE DE SAISIE ────────────────────────────── */}
       <Modal visible={modalVisible} transparent animationType="fade">
-        <View style={st.modalOverlay}>
-          <View style={st.modalContent}>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={st.modalOverlay}>
+            <View style={st.modalContent}>
             <Text style={st.modalTitle}>
               {modalMode === 'temperature' ? 'Saisie Température' : 'Saisie Commentaire'}
             </Text>
@@ -386,7 +430,8 @@ export default function HaccpScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+          </View>
+        </TouchableWithoutFeedback>
       </Modal>
     </SafeAreaView>
   );

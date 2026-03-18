@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Image, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Image, StyleSheet, Alert, ActivityIndicator, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { Colors, Spacing, Radius } from '@/constants/Theme';
 import { Card, Btn, ListItem, Empty, SectionTitle } from '@/components/UI';
 import { useApp } from '@/lib/context';
-import { Auth, Dashboard } from '@/lib/api';
+import { Auth, Dashboard, Restaurant } from '@/lib/api';
 import { getToken } from '@/lib/auth';
 
-type SubPage = null | 'suppliers' | 'haccp' | 'settings';
+type SubPage = null | 'suppliers' | 'haccp' | 'settings' | 'restaurant';
 
 export default function MoreScreen() {
   const [sub, setSub] = useState<SubPage>(null);
@@ -22,22 +22,23 @@ export default function MoreScreen() {
   function goSub(p: SubPage) { setSub(p); }
   function goBack() { setSub(null); }
 
-  if (sub === 'suppliers') return <SuppliersPage goBack={goBack} />;
-  if (sub === 'haccp')     return <HaccpPage goBack={goBack} state={state} addHaccpPhoto={addHaccpPhoto} />;
-  if (sub === 'settings')  return <SettingsPage goBack={goBack} clearAllData={clearAllData} />;
+  if (sub === 'suppliers')  return <SuppliersPage goBack={goBack} />;
+  if (sub === 'haccp')      return <HaccpPage goBack={goBack} state={state} addHaccpPhoto={addHaccpPhoto} />;
+  if (sub === 'settings')   return <SettingsPage goBack={goBack} clearAllData={clearAllData} />;
+  if (sub === 'restaurant') return <RestaurantPage goBack={goBack} />;
 
   return (
     <SafeAreaView style={styles.safe}>
       <View style={[styles.header, { flexDirection: 'row', alignItems: 'center' }]}>
-  <Image
-    source={require('../../assets/logo.png')}
-    style={{ width: 34, height: 34, borderRadius: 8, marginRight: 10 }}
-    resizeMode="contain"
-  />
-  <View>
-        <Text style={styles.headerTitle}>Plus</Text>
-        <Text style={styles.headerSub}>Navigation & Configuration</Text>
-      </View>
+        <Image
+          source={require('../../assets/logo.png')}
+          style={{ width: 34, height: 34, borderRadius: 8, marginRight: 10 }}
+          resizeMode="contain"
+        />
+        <View>
+          <Text style={styles.headerTitle}>Plus</Text>
+          <Text style={styles.headerSub}>Navigation & Configuration</Text>
+        </View>
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -45,7 +46,8 @@ export default function MoreScreen() {
         <Card>
           <ListItem icon="🏭" title="Fournisseurs" subtitle="Catalogue produits & comparateur prix" onPress={() => goSub('suppliers')} />
           <ListItem icon="🌡️" title="Traçabilité HACCP" subtitle="Étiquettes & relevés températures" onPress={() => goSub('haccp')} />
-          <ListItem icon="⚙️" title="Paramètres" subtitle="Clé API, compte, données" onPress={() => goSub('settings')} />
+          <ListItem icon="⚙️" title="Paramètres" subtitle="Compte & données" onPress={() => goSub('settings')} />
+          <ListItem icon="🍽️" title="Restaurant" subtitle="Session collaborative & équipe" onPress={() => goSub('restaurant')} />
         </Card>
 
         <SectionTitle>Mon compte</SectionTitle>
@@ -66,18 +68,432 @@ export default function MoreScreen() {
   );
 }
 
-// ─── FOURNISSEURS ─────────────────────────────────────────
-// FIX 7 : Les fournisseurs sont chargés depuis l'API directement
-// (state.suppliers n'existe pas dans DashboardData)
+// ═════════════════════════════════════════════════════════════
+// ─── RESTAURANT (Version 2 Rôles : Owner & Admin) ───────────
+// ═════════════════════════════════════════════════════════════
+
+function RestaurantPage({ goBack }: { goBack: () => void }) {
+  const [loading, setLoading]       = useState(true);
+  const [restaurant, setRestaurant] = useState<any>(null);
+  const [view, setView]             = useState<'home' | 'join' | 'create'>('home');
+  const [inviteCode, setInviteCode] = useState('');
+  const [joining, setJoining]       = useState(false);
+  const [inviting, setInviting]     = useState(false);
+  const [creating, setCreating]     = useState(false);
+  
+  const [nom, setNom]               = useState('');
+  const [adresse, setAdresse]       = useState('');
+  const [telephone, setTelephone]   = useState('');
+  const [siret, setSiret]           = useState('');
+
+  useEffect(() => { loadRestaurant(); }, []);
+
+  async function loadRestaurant() {
+    setLoading(true);
+    try {
+      const data = await Restaurant.get();
+      setRestaurant(data);
+    } catch (e) {
+      console.error('[Restaurant]', e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleRemoveMember(memberId: string, memberName: string) {
+    Alert.alert(
+      'Supprimer un membre',
+      `Voulez-vous vraiment retirer ${memberName} de l'équipe ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        { 
+          text: 'Supprimer', 
+          style: 'destructive', 
+          onPress: async () => {
+            try {
+              await Restaurant.removeMember(memberId); 
+              Alert.alert('Succès', 'Membre retiré.');
+              loadRestaurant();
+            } catch (e: any) {
+              Alert.alert('Erreur', e?.message || "Impossible de supprimer le membre.");
+            }
+          }
+        }
+      ]
+    );
+  }
+
+  async function handleJoin() {
+    if (!inviteCode.trim()) {
+      Alert.alert('Erreur', "Saisissez un code d'invitation.");
+      return;
+    }
+    setJoining(true);
+    try {
+      const data = await Restaurant.join(inviteCode.trim());
+      Alert.alert('✅ Bienvenue !', `Vous avez rejoint le restaurant.`);
+      setView('home');
+      setInviteCode('');
+      loadRestaurant();
+    } catch (e: any) {
+      Alert.alert('Erreur', e?.message || "Code invalide ou expiré.");
+    } finally {
+      setJoining(false);
+    }
+  }
+
+  async function handleCreate() {
+    if (!nom.trim()) {
+      Alert.alert('Erreur', 'Le nom du restaurant est requis.');
+      return;
+    }
+    setCreating(true);
+    try {
+      await Restaurant.create({ nom: nom.trim(), adresse: adresse.trim(), telephone: telephone.trim(), siret: siret.trim() });
+      Alert.alert('✅ Créé !', `"${nom.trim()}" est prêt.`);
+      setView('home');
+      setNom(''); setAdresse(''); setTelephone(''); setSiret('');
+      loadRestaurant();
+    } catch (e: any) {
+      Alert.alert('Erreur', e?.message || 'Impossible de créer le restaurant.');
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function handleInvite() {
+    setInviting(true);
+    try {
+      const data = await Restaurant.invite();
+      const message = `🍽️ Rejoignez mon restaurant sur ChefGestion PRO !\n\nVotre code d'invitation : ${data.code}\n\nValide 7 jours. Entrez ce code dans Plus → Restaurant → Rejoindre.`;
+      await Share.share({ message, title: 'Invitation ChefGestion PRO' });
+    } catch (e: any) {
+      if (e?.message !== 'User did not share') {
+        Alert.alert('Erreur', e?.message || "Impossible de générer l'invitation.");
+      }
+    } finally {
+      setInviting(false);
+    }
+  }
+
+  async function handleLeave() {
+    Alert.alert(
+      'Quitter le restaurant ?',
+      'Vous perdrez l\'accès aux données partagées.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Quitter', style: 'destructive',
+          onPress: async () => {
+            try {
+              await Restaurant.leave();
+              setRestaurant(null);
+              Alert.alert('✅ Terminé', 'Vous avez quitté le restaurant.');
+            } catch (e: any) {
+              Alert.alert('Erreur', e?.message || 'Impossible de quitter.');
+            }
+          },
+        },
+      ]
+    );
+  }
+
+  // ─── LOADING ───────────────────────────────────────────
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.headerSub2}>
+          <TouchableOpacity onPress={goBack} style={styles.backBtn}><Text style={styles.backArrow}>‹</Text></TouchableOpacity>
+          <View><Text style={styles.headerTitle}>Restaurant</Text><Text style={styles.subTxt}>Session collaborative</Text></View>
+        </View>
+        <ActivityIndicator color={Colors.gold} style={{ marginTop: 40 }} />
+      </SafeAreaView>
+    );
+  }
+
+  // ─── DÉJÀ DANS UN RESTAURANT ───────────────────────────
+  if (restaurant) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.headerSub2}>
+          <TouchableOpacity onPress={goBack} style={styles.backBtn}><Text style={styles.backArrow}>‹</Text></TouchableOpacity>
+          <View><Text style={styles.headerTitle}>Restaurant</Text><Text style={styles.subTxt}>{restaurant.nom}</Text></View>
+        </View>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+
+          {/* Infos restaurant */}
+          <Card>
+            <View style={{ padding: 16, alignItems: 'center', gap: 6 }}>
+              <Text style={{ fontSize: 32 }}>🍽️</Text>
+              <Text style={{ color: Colors.cream, fontSize: 18, fontFamily: 'Cinzel_700Bold', textAlign: 'center' }}>{restaurant.nom}</Text>
+              {restaurant.adresse ? <Text style={{ color: Colors.muted, fontSize: 12, textAlign: 'center' }}>📍 {restaurant.adresse}</Text> : null}
+              {restaurant.telephone ? <Text style={{ color: Colors.muted, fontSize: 12 }}>📞 {restaurant.telephone}</Text> : null}
+              {restaurant.siret ? <Text style={{ color: Colors.muted, fontSize: 11, fontStyle: 'italic' }}>SIRET: {restaurant.siret}</Text> : null}
+            </View>
+          </Card>
+
+          {/* Bouton inviter */}
+          {restaurant.isOwner && (
+            <Btn
+              label={inviting ? 'Génération...' : '📨  Inviter un Admin'}
+              onPress={handleInvite}
+              loading={inviting}
+              style={{ marginTop: 12 }}
+            />
+          )}
+
+          {/* Membres */}
+          <SectionTitle style={{ marginTop: 20 }}>Équipe</SectionTitle>
+          <Card>
+            {(restaurant.members ?? []).map((m: any) => (
+              <View key={m.id} style={{ flexDirection: 'row', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.04)', gap: 10 }}>
+                <View style={[styles.avatar, { width: 36, height: 36, borderRadius: 18 }]}>
+                  <Text style={[styles.avatarTxt, { fontSize: 14 }]}>
+                    {m.name.split(' ').map((w: string) => w[0]).join('').substring(0, 2).toUpperCase()}
+                  </Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: Colors.cream, fontSize: 14 }}>
+                    {m.name} {m.isMe ? '(vous)' : ''}
+                  </Text>
+                  <Text style={{ color: Colors.gold, fontSize: 11, fontStyle: 'italic', marginTop: 1 }}>
+                    {m.role === 'owner' ? '👑 Chef' : '⭐ Co-Chef/Second'}
+                  </Text>
+                </View>
+
+                {/* BOUTON SUPPRESSION : Uniquement pour l'Owner */}
+                {restaurant.isOwner && !m.isMe && (
+                  <TouchableOpacity onPress={() => handleRemoveMember(m.id, m.name)} style={{ padding: 8 }}>
+                    <Text style={{ fontSize: 16 }}>🗑️</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))}
+          </Card>
+
+          {/* Quitter (si pas owner) */}
+          {!restaurant.isOwner && (
+            <Btn
+              label="🚪  Quitter le restaurant"
+              onPress={handleLeave}
+              variant="danger"
+              style={{ marginTop: 20 }}
+            />
+          )}
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  // ─── PAS DE RESTAURANT — ÉCRAN CHOIX ───────────────────
+  if (view === 'join') {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.headerSub2}>
+          <TouchableOpacity onPress={() => setView('home')} style={styles.backBtn}><Text style={styles.backArrow}>‹</Text></TouchableOpacity>
+          <View><Text style={styles.headerTitle}>Rejoindre</Text><Text style={styles.subTxt}>Entrez votre code d'invitation</Text></View>
+        </View>
+        <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingTop: 40 }]}>
+          <View style={{ alignItems: 'center', marginBottom: 30 }}>
+            <Text style={{ fontSize: 48 }}>🔑</Text>
+            <Text style={{ color: Colors.cream, fontSize: 16, fontFamily: 'Cinzel_700Bold', marginTop: 12, textAlign: 'center' }}>Code d'invitation</Text>
+            <Text style={{ color: Colors.muted, fontSize: 12, textAlign: 'center', marginTop: 6, lineHeight: 18 }}>
+              Demandez le code à 6 caractères{'\n'}au Chef du restaurant.
+            </Text>
+          </View>
+
+          <TextInput
+            style={restStyles.codeInput}
+            value={inviteCode}
+            onChangeText={t => setInviteCode(t.toUpperCase())}
+            placeholder="EX: A3F1B2"
+            placeholderTextColor="#555"
+            maxLength={6}
+            autoCapitalize="characters"
+            autoFocus
+          />
+
+          <Btn
+            label={joining ? 'Vérification...' : '✅  Rejoindre le restaurant'}
+            onPress={handleJoin}
+            loading={joining}
+            style={{ marginTop: 16 }}
+          />
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  if (view === 'create') {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.headerSub2}>
+          <TouchableOpacity onPress={() => setView('home')} style={styles.backBtn}><Text style={styles.backArrow}>‹</Text></TouchableOpacity>
+          <View><Text style={styles.headerTitle}>Créer</Text><Text style={styles.subTxt}>Nouveau restaurant</Text></View>
+        </View>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+          <View style={{ alignItems: 'center', marginBottom: 24 }}>
+            <Text style={{ fontSize: 48 }}>🍽️</Text>
+            <Text style={{ color: Colors.cream, fontSize: 16, fontFamily: 'Cinzel_700Bold', marginTop: 12, textAlign: 'center' }}>Créer un Restaurant</Text>
+          </View>
+
+          <Card style={{ padding: 16, gap: 14 }}>
+            <View>
+              <Text style={restStyles.fieldLabel}>Nom du restaurant *</Text>
+              <TextInput style={restStyles.fieldInput} value={nom} onChangeText={setNom} placeholder="Ex: Le Bistrot du Chef" placeholderTextColor="#555" />
+            </View>
+            <View>
+              <Text style={restStyles.fieldLabel}>Adresse</Text>
+              <TextInput style={restStyles.fieldInput} value={adresse} onChangeText={setAdresse} placeholder="12 rue de la Cuisine, 75001 Paris" placeholderTextColor="#555" />
+            </View>
+            <View>
+              <Text style={restStyles.fieldLabel}>Téléphone</Text>
+              <TextInput style={restStyles.fieldInput} value={telephone} onChangeText={setTelephone} placeholder="01 23 45 67 89" placeholderTextColor="#555" keyboardType="phone-pad" />
+            </View>
+            <View>
+              <Text style={restStyles.fieldLabel}>SIRET (optionnel)</Text>
+              <TextInput style={restStyles.fieldInput} value={siret} onChangeText={setSiret} placeholder="123 456 789 00012" placeholderTextColor="#555" keyboardType="numeric" />
+            </View>
+          </Card>
+
+          <Btn
+            label={creating ? 'Création...' : '✅  Créer le restaurant'}
+            onPress={handleCreate}
+            loading={creating}
+            style={{ marginTop: 16 }}
+          />
+
+          <Text style={{ color: Colors.muted, fontSize: 11, textAlign: 'center', marginTop: 12, lineHeight: 16, fontStyle: 'italic' }}>
+            Vous pourrez ensuite inviter vos collaborateurs{'\n'}à rejoindre votre session restaurant.
+          </Text>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  // ─── ÉCRAN D'ACCUEIL RESTAURANT (pas encore de restaurant) ─
+  return (
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.headerSub2}>
+        <TouchableOpacity onPress={goBack} style={styles.backBtn}><Text style={styles.backArrow}>‹</Text></TouchableOpacity>
+        <View><Text style={styles.headerTitle}>Restaurant</Text><Text style={styles.subTxt}>Session collaborative</Text></View>
+      </View>
+      <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingTop: 30 }]}>
+
+        <View style={{ alignItems: 'center', marginBottom: 30 }}>
+          <Text style={{ fontSize: 56 }}>🍽️</Text>
+          <Text style={{ color: Colors.cream, fontSize: 18, fontFamily: 'Cinzel_700Bold', marginTop: 12, textAlign: 'center' }}>Session Restaurant</Text>
+          <Text style={{ color: Colors.muted, fontSize: 13, textAlign: 'center', marginTop: 8, lineHeight: 20, paddingHorizontal: 20 }}>
+            Travaillez en équipe ! Partagez factures, températures et HACCP avec vos collaborateurs en temps réel.
+          </Text>
+        </View>
+
+        {/* Option 1 : Rejoindre */}
+        <Card style={{ padding: 20, marginBottom: 12 }}>
+          <View style={{ alignItems: 'center', gap: 8 }}>
+            <Text style={{ fontSize: 28 }}>🔑</Text>
+            <Text style={{ color: Colors.cream, fontSize: 14, fontFamily: 'Cinzel_700Bold', letterSpacing: 1 }}>J'AI UN CODE D'INVITATION</Text>
+            <Text style={{ color: Colors.muted, fontSize: 12, textAlign: 'center', lineHeight: 18 }}>
+              Un collègue vous a partagé un code ?{'\n'}Entrez-le pour rejoindre sa session.
+            </Text>
+            <Btn label="Entrer mon code" onPress={() => setView('join')} style={{ marginTop: 8, width: '100%' }} />
+          </View>
+        </Card>
+
+        {/* Séparateur */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 8 }}>
+          <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(212,175,55,0.2)' }} />
+          <Text style={{ color: Colors.muted, fontSize: 11, marginHorizontal: 12, fontStyle: 'italic' }}>ou</Text>
+          <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(212,175,55,0.2)' }} />
+        </View>
+
+        {/* Option 2 : Créer */}
+        <TouchableOpacity
+          style={restStyles.createLink}
+          onPress={() => setView('create')}
+          activeOpacity={0.7}
+        >
+          <Text style={restStyles.createLinkText}>Je n'ai pas de code d'invitation</Text>
+          <Text style={restStyles.createLinkCta}>Créer un Restaurant →</Text>
+          <Text style={restStyles.createLinkHint}>
+            (Permets de créer et enregistrer une nouvelle session de restaurant afin que plusieurs collaborateurs puissent s'y connecter)
+          </Text>
+        </TouchableOpacity>
+
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+// ─── STYLES RESTAURANT ───────────────────────────────────
+const restStyles = StyleSheet.create({
+  codeInput: {
+    backgroundColor: '#000',
+    borderWidth: 2,
+    borderColor: Colors.gold,
+    borderRadius: 12,
+    color: '#fff',
+    fontSize: 32,
+    textAlign: 'center',
+    paddingVertical: 18,
+    fontFamily: 'DMSans_700Bold',
+    letterSpacing: 8,
+  },
+  fieldLabel: {
+    fontFamily: 'Cinzel_400Regular',
+    fontSize: 9,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    color: Colors.mutedLight,
+    marginBottom: 6,
+  },
+  fieldInput: {
+    backgroundColor: Colors.blackMid,
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.2)',
+    borderRadius: Radius.sm,
+    padding: 13,
+    color: Colors.cream,
+    fontSize: 15,
+  },
+  createLink: {
+    padding: 20,
+    alignItems: 'center',
+    gap: 6,
+  },
+  createLinkText: {
+    color: Colors.muted,
+    fontSize: 13,
+    fontStyle: 'italic',
+  },
+  createLinkCta: {
+    color: Colors.gold,
+    fontSize: 14,
+    fontFamily: 'Cinzel_700Bold',
+    letterSpacing: 1,
+    marginTop: 4,
+  },
+  createLinkHint: {
+    color: Colors.muted,
+    fontSize: 10,
+    textAlign: 'center',
+    lineHeight: 15,
+    marginTop: 6,
+    fontStyle: 'italic',
+    paddingHorizontal: 10,
+  },
+});
+
+// ═════════════════════════════════════════════════════════════
+// ─── FOURNISSEURS ───────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════
 function SuppliersPage({ goBack }: any) {
   const [name, setName]           = useState('');
   const [suppliers, setSuppliers] = useState<Record<string, any>>({});
   const [loading, setLoading]     = useState(true);
   const [adding, setAdding]       = useState(false);
 
-  useEffect(() => {
-    loadSuppliers();
-  }, []);
+  useEffect(() => { loadSuppliers(); }, []);
 
   async function loadSuppliers() {
     setLoading(true);
@@ -88,11 +504,8 @@ function SuppliersPage({ goBack }: any) {
       });
       const json = await res.json();
       if (json.ok) setSuppliers(json.data ?? {});
-    } catch (e) {
-      console.error('[Suppliers]', e);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { console.error('[Suppliers]', e); }
+    finally { setLoading(false); }
   }
 
   async function handleAdd() {
@@ -102,10 +515,7 @@ function SuppliersPage({ goBack }: any) {
       const token = await getToken();
       const res = await fetch('https://chefgestion-pro.onrender.com/api/suppliers', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: name.trim() }),
       });
       const json = await res.json();
@@ -114,13 +524,10 @@ function SuppliersPage({ goBack }: any) {
         loadSuppliers();
         Alert.alert('✅ Ajouté !', `"${name.trim()}" a été créé.`);
       } else {
-        Alert.alert('Erreur', json.error ?? 'Impossible d\'ajouter ce fournisseur.');
+        Alert.alert('Erreur', json.error ?? "Impossible d'ajouter.");
       }
-    } catch (e) {
-      Alert.alert('Erreur', 'Connexion impossible.');
-    } finally {
-      setAdding(false);
-    }
+    } catch { Alert.alert('Erreur', 'Connexion impossible.'); }
+    finally { setAdding(false); }
   }
 
   function productMap() {
@@ -141,25 +548,12 @@ function SuppliersPage({ goBack }: any) {
         <View><Text style={styles.headerTitle}>Fournisseurs</Text><Text style={styles.subTxt}>Catalogue & comparateur</Text></View>
       </View>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-
         <View style={styles.addRow}>
-          <TextInput
-            style={[styles.addInput, { flex: 1 }]}
-            value={name}
-            onChangeText={setName}
-            placeholder="Nom du fournisseur..."
-            placeholderTextColor={Colors.muted}
-            onSubmitEditing={handleAdd}
-          />
-          <Btn
-            label={adding ? '...' : '+'}
-            onPress={handleAdd}
-            style={{ paddingHorizontal: 20 }}
-          />
+          <TextInput style={[styles.addInput, { flex: 1 }]} value={name} onChangeText={setName} placeholder="Nom du fournisseur..." placeholderTextColor={Colors.muted} onSubmitEditing={handleAdd} />
+          <Btn label={adding ? '...' : '+'} onPress={handleAdd} style={{ paddingHorizontal: 20 }} />
         </View>
 
         <SectionTitle>Mes Fournisseurs</SectionTitle>
-
         {loading ? (
           <ActivityIndicator color={Colors.gold} style={{ marginTop: 20 }} />
         ) : Object.keys(suppliers).length === 0 ? (
@@ -190,9 +584,7 @@ function SuppliersPage({ goBack }: any) {
                 {offers.sort((a, b) => a.price - b.price).map((o, i) => (
                   <View key={i} style={styles.prodRow}>
                     <Text style={[styles.prodName, i === 0 && { color: Colors.ok }]}>{o.sup}</Text>
-                    <Text style={[styles.prodPrice, i === 0 && { color: Colors.ok }]}>
-                      {o.price.toFixed(2)}€/{o.unit}
-                    </Text>
+                    <Text style={[styles.prodPrice, i === 0 && { color: Colors.ok }]}>{o.price.toFixed(2)}€/{o.unit}</Text>
                   </View>
                 ))}
               </Card>
@@ -204,9 +596,11 @@ function SuppliersPage({ goBack }: any) {
   );
 }
 
-// ─── HACCP ────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════
+// ─── HACCP ──────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════
 function HaccpPage({ goBack, state, addHaccpPhoto }: any) {
-  const [fridges, setFridges]           = useState<any[]>([]);
+  const [fridges, setFridges]               = useState<any[]>([]);
   const [loadingFridges, setLoadingFridges] = useState(true);
   const [showAddFridge, setShowAddFridge]   = useState(false);
   const [newFridgeName, setNewFridgeName]   = useState('');
@@ -214,9 +608,7 @@ function HaccpPage({ goBack, state, addHaccpPhoto }: any) {
 
   const photos = state?.haccpPhotos || [];
 
-  useEffect(() => {
-    loadFridges();
-  }, []);
+  useEffect(() => { loadFridges(); }, []);
 
   async function loadFridges() {
     setLoadingFridges(true);
@@ -227,18 +619,12 @@ function HaccpPage({ goBack, state, addHaccpPhoto }: any) {
       });
       const json = await res.json();
       if (json.ok) setFridges(json.data ?? []);
-    } catch (e) {
-      console.error('[Frigos]', e);
-    } finally {
-      setLoadingFridges(false);
-    }
+    } catch (e) { console.error('[Frigos]', e); }
+    finally { setLoadingFridges(false); }
   }
 
   async function addFridge() {
-    if (!newFridgeName.trim()) {
-      Alert.alert('Erreur', 'Donne un nom à cet équipement');
-      return;
-    }
+    if (!newFridgeName.trim()) { Alert.alert('Erreur', 'Donne un nom à cet équipement'); return; }
     try {
       const token = await getToken();
       const res = await fetch('https://chefgestion-pro.onrender.com/api/fridges', {
@@ -248,14 +634,10 @@ function HaccpPage({ goBack, state, addHaccpPhoto }: any) {
       });
       const json = await res.json();
       if (json.ok) {
-        setNewFridgeName('');
-        setShowAddFridge(false);
-        loadFridges();
+        setNewFridgeName(''); setShowAddFridge(false); loadFridges();
         Alert.alert('✅ Ajouté !', `"${json.data.nom}" a été créé.`);
       }
-    } catch (e) {
-      Alert.alert('Erreur', "Impossible d'ajouter cet équipement");
-    }
+    } catch { Alert.alert('Erreur', "Impossible d'ajouter cet équipement"); }
   }
 
   async function deleteFridge(id: string, nom: string) {
@@ -266,8 +648,7 @@ function HaccpPage({ goBack, state, addHaccpPhoto }: any) {
         onPress: async () => {
           const token = await getToken();
           await fetch(`https://chefgestion-pro.onrender.com/api/fridges/${id}`, {
-            method: 'DELETE',
-            headers: { Authorization: `Bearer ${token}` },
+            method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
           });
           loadFridges();
         },
@@ -278,26 +659,15 @@ function HaccpPage({ goBack, state, addHaccpPhoto }: any) {
   async function pickPhoto() {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') { Alert.alert('Permission requise', 'Accès caméra nécessaire.'); return; }
-
     Alert.alert('Source', 'Importer la photo', [
-      {
-        text: 'Appareil photo', onPress: async () => {
-          const r = await ImagePicker.launchCameraAsync({ quality: 0.7 });
-          if (!r.canceled) addHaccpPhoto({
-            name: `Étiquette_${new Date().toLocaleDateString('fr-FR').replace(/\//g, '-')}`,
-            uri: r.assets[0].uri,
-          });
-        },
-      },
-      {
-        text: 'Galerie', onPress: async () => {
-          const r = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
-          if (!r.canceled) addHaccpPhoto({
-            name: `Photo_${new Date().toLocaleDateString('fr-FR').replace(/\//g, '-')}`,
-            uri: r.assets[0].uri,
-          });
-        },
-      },
+      { text: 'Appareil photo', onPress: async () => {
+        const r = await ImagePicker.launchCameraAsync({ quality: 0.7 });
+        if (!r.canceled) addHaccpPhoto({ name: `Étiquette_${new Date().toLocaleDateString('fr-FR').replace(/\//g, '-')}`, uri: r.assets[0].uri });
+      }},
+      { text: 'Galerie', onPress: async () => {
+        const r = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
+        if (!r.canceled) addHaccpPhoto({ name: `Photo_${new Date().toLocaleDateString('fr-FR').replace(/\//g, '-')}`, uri: r.assets[0].uri });
+      }},
       { text: 'Annuler', style: 'cancel' },
     ]);
   }
@@ -305,35 +675,20 @@ function HaccpPage({ goBack, state, addHaccpPhoto }: any) {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.headerSub2}>
-        <TouchableOpacity onPress={goBack} style={styles.backBtn}>
-          <Text style={styles.backArrow}>‹</Text>
-        </TouchableOpacity>
-        <View>
-          <Text style={styles.headerTitle}>Traçabilité HACCP</Text>
-          <Text style={styles.subTxt}>Sanitaire & températures</Text>
-        </View>
+        <TouchableOpacity onPress={goBack} style={styles.backBtn}><Text style={styles.backArrow}>‹</Text></TouchableOpacity>
+        <View><Text style={styles.headerTitle}>Traçabilité HACCP</Text><Text style={styles.subTxt}>Sanitaire & températures</Text></View>
       </View>
-
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-
-        {/* ─── Mes équipements froids ─── */}
         <SectionTitle>🌡️ Mes Équipements Froids</SectionTitle>
         <Text style={{ color: '#9A8060', fontSize: 12, marginBottom: 12, lineHeight: 18 }}>
           Configure ici tes frigos et congélateurs. Ils apparaîtront lors de chaque scan.
         </Text>
 
-        {loadingFridges ? (
-          <ActivityIndicator color="#D4AF37" />
-        ) : (
+        {loadingFridges ? <ActivityIndicator color="#D4AF37" /> : (
           <>
             {fridges.length === 0 && (
-              <Card>
-                <Text style={{ color: '#666', textAlign: 'center', padding: 20, fontSize: 13 }}>
-                  Aucun équipement configuré.{'\n'}Ajoute ton premier frigo ci-dessous.
-                </Text>
-              </Card>
+              <Card><Text style={{ color: '#666', textAlign: 'center', padding: 20, fontSize: 13 }}>Aucun équipement configuré.{'\n'}Ajoute ton premier frigo ci-dessous.</Text></Card>
             )}
-
             {fridges.map((f: any) => (
               <Card key={f.id} style={{ marginBottom: 8 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', padding: 12, gap: 12 }}>
@@ -341,58 +696,35 @@ function HaccpPage({ goBack, state, addHaccpPhoto }: any) {
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: '#E8D5A3', fontSize: 14, fontWeight: 'bold' }}>{f.nom}</Text>
                     <Text style={{ color: '#9A8060', fontSize: 11, marginTop: 2 }}>
-                      {f.type === 'negatif' ? 'Congélateur' : 'Réfrigérateur'} ·
-                      Cible : {f.temp_min}°C à {f.temp_max}°C
+                      {f.type === 'negatif' ? 'Congélateur' : 'Réfrigérateur'} · Cible : {f.temp_min}°C à {f.temp_max}°C
                     </Text>
                   </View>
-                  <TouchableOpacity onPress={() => deleteFridge(f.id, f.nom)}>
-                    <Text style={{ color: '#F87171', fontSize: 18 }}>🗑️</Text>
-                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => deleteFridge(f.id, f.nom)}><Text style={{ color: '#F87171', fontSize: 18 }}>🗑️</Text></TouchableOpacity>
                 </View>
               </Card>
             ))}
 
             {showAddFridge ? (
               <Card style={{ padding: 16, gap: 12 }}>
-                <Text style={{ color: '#D4AF37', fontSize: 12, fontFamily: 'Cinzel_700Bold', letterSpacing: 1 }}>
-                  NOUVEL ÉQUIPEMENT
-                </Text>
-                <TextInput
-                  style={{ backgroundColor: '#111', borderWidth: 1, borderColor: '#D4AF37', borderRadius: 8, color: '#fff', padding: 12, fontSize: 14 }}
-                  value={newFridgeName}
-                  onChangeText={setNewFridgeName}
-                  placeholder="Ex: Frigo Viandes, Congélateur N°2..."
-                  placeholderTextColor="#444"
-                />
+                <Text style={{ color: '#D4AF37', fontSize: 12, fontFamily: 'Cinzel_700Bold', letterSpacing: 1 }}>NOUVEL ÉQUIPEMENT</Text>
+                <TextInput style={{ backgroundColor: '#111', borderWidth: 1, borderColor: '#D4AF37', borderRadius: 8, color: '#fff', padding: 12, fontSize: 14 }} value={newFridgeName} onChangeText={setNewFridgeName} placeholder="Ex: Frigo Viandes, Congélateur N°2..." placeholderTextColor="#444" />
                 <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <TouchableOpacity
-                    style={{ flex: 1, padding: 12, borderRadius: 8, alignItems: 'center', backgroundColor: newFridgeType === 'positif' ? '#D4AF37' : '#1a1a1a', borderWidth: 1, borderColor: '#D4AF37' }}
-                    onPress={() => setNewFridgeType('positif')}
-                  >
+                  <TouchableOpacity style={{ flex: 1, padding: 12, borderRadius: 8, alignItems: 'center', backgroundColor: newFridgeType === 'positif' ? '#D4AF37' : '#1a1a1a', borderWidth: 1, borderColor: '#D4AF37' }} onPress={() => setNewFridgeType('positif')}>
                     <Text style={{ fontSize: 20 }}>❄️</Text>
                     <Text style={{ color: newFridgeType === 'positif' ? '#000' : '#D4AF37', fontSize: 11, marginTop: 4, fontWeight: 'bold' }}>RÉFRIGÉRATEUR</Text>
                     <Text style={{ color: newFridgeType === 'positif' ? '#333' : '#666', fontSize: 10 }}>0°C à 8°C</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={{ flex: 1, padding: 12, borderRadius: 8, alignItems: 'center', backgroundColor: newFridgeType === 'negatif' ? '#D4AF37' : '#1a1a1a', borderWidth: 1, borderColor: '#D4AF37' }}
-                    onPress={() => setNewFridgeType('negatif')}
-                  >
+                  <TouchableOpacity style={{ flex: 1, padding: 12, borderRadius: 8, alignItems: 'center', backgroundColor: newFridgeType === 'negatif' ? '#D4AF37' : '#1a1a1a', borderWidth: 1, borderColor: '#D4AF37' }} onPress={() => setNewFridgeType('negatif')}>
                     <Text style={{ fontSize: 20 }}>🧊</Text>
                     <Text style={{ color: newFridgeType === 'negatif' ? '#000' : '#D4AF37', fontSize: 11, marginTop: 4, fontWeight: 'bold' }}>CONGÉLATEUR</Text>
                     <Text style={{ color: newFridgeType === 'negatif' ? '#333' : '#666', fontSize: 10 }}>-15°C à -25°C</Text>
                   </TouchableOpacity>
                 </View>
                 <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <TouchableOpacity
-                    style={{ flex: 1, backgroundColor: '#1a1a1a', borderRadius: 8, padding: 12, alignItems: 'center' }}
-                    onPress={() => { setShowAddFridge(false); setNewFridgeName(''); }}
-                  >
+                  <TouchableOpacity style={{ flex: 1, backgroundColor: '#1a1a1a', borderRadius: 8, padding: 12, alignItems: 'center' }} onPress={() => { setShowAddFridge(false); setNewFridgeName(''); }}>
                     <Text style={{ color: '#666' }}>Annuler</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={{ flex: 2, backgroundColor: '#D4AF37', borderRadius: 8, padding: 12, alignItems: 'center' }}
-                    onPress={addFridge}
-                  >
+                  <TouchableOpacity style={{ flex: 2, backgroundColor: '#D4AF37', borderRadius: 8, padding: 12, alignItems: 'center' }} onPress={addFridge}>
                     <Text style={{ color: '#000', fontWeight: 'bold' }}>✅ Ajouter</Text>
                   </TouchableOpacity>
                 </View>
@@ -403,18 +735,14 @@ function HaccpPage({ goBack, state, addHaccpPhoto }: any) {
           </>
         )}
 
-        {/* ─── Étiquettes sanitaires ─── */}
         <SectionTitle style={{ marginTop: 24 }}>Étiquettes Sanitaires</SectionTitle>
         <Btn label="📸  Ajouter une photo" onPress={pickPhoto} style={{ marginBottom: 16 }} />
-
         {photos.length > 0 && (
           <View style={styles.photoGrid}>
             {photos.map((p: any, i: number) => (
               <View key={i} style={styles.photoTile}>
                 <Image source={{ uri: p.uri }} style={styles.photoImg} resizeMode="cover" />
-                <View style={{ padding: 8 }}>
-                  <Text style={styles.photoName} numberOfLines={1}>{p.name}</Text>
-                </View>
+                <View style={{ padding: 8 }}><Text style={styles.photoName} numberOfLines={1}>{p.name}</Text></View>
               </View>
             ))}
           </View>
@@ -424,21 +752,17 @@ function HaccpPage({ goBack, state, addHaccpPhoto }: any) {
   );
 }
 
-// ─── SETTINGS ─────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════
+// ─── SETTINGS ───────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════
 function SettingsPage({ goBack, clearAllData }: any) {
-  // ✅ apiKey/setApiKey/saveKey supprimés — clé gérée côté serveur
-
   function handleClearData() {
     Alert.alert('Confirmer', 'Cette action est irréversible. Continuer ?', [
       { text: 'Annuler', style: 'cancel' },
       {
         text: 'Effacer', style: 'destructive', onPress: async () => {
-          try {
-            await Dashboard.clearData();
-            clearAllData();
-          } catch {
-            clearAllData();
-          }
+          try { await Dashboard.clearData(); clearAllData(); }
+          catch { clearAllData(); }
         },
       },
     ]);
@@ -462,6 +786,9 @@ function SettingsPage({ goBack, clearAllData }: any) {
   );
 }
 
+// ═════════════════════════════════════════════════════════════
+// ─── STYLES COMMUNS ─────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════
 const styles = StyleSheet.create({
   safe:         { flex: 1, backgroundColor: Colors.blackSoft },
   header:       { padding: Spacing.md, backgroundColor: Colors.charcoal, borderBottomWidth: 1, borderBottomColor: 'rgba(212,175,55,0.1)' },
@@ -491,6 +818,4 @@ const styles = StyleSheet.create({
   photoName:    { fontSize: 12, color: Colors.cream },
   settSection:  { backgroundColor: Colors.charcoal, borderWidth: 1, borderColor: 'rgba(212,175,55,0.12)', borderRadius: Radius.md, overflow: 'hidden', marginBottom: 14 },
   settLabel:    { fontFamily: 'Cinzel_400Regular', fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', color: Colors.gold, padding: 12, paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: 'rgba(212,175,55,0.08)' },
-  settFieldLabel: { fontFamily: 'Cinzel_400Regular', fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', color: Colors.mutedLight, marginBottom: 6 },
-  apiInput:     { backgroundColor: Colors.blackMid, borderWidth: 1, borderColor: 'rgba(212,175,55,0.2)', borderRadius: Radius.sm, padding: 12, color: Colors.cream, fontFamily: 'DMSans_400Regular', fontSize: 14 },
 });

@@ -13,6 +13,7 @@ import suppliersRoutes from './routes/suppliers';
 import haccpRoutes     from './routes/haccp';
 import dashboardRoutes from './routes/dashboard';
 import fridgesRouter   from './routes/fridges';
+import restaurantRouter from './routes/restaurant';
 import { supabase }    from './services/supabase';
 
 const app = express();
@@ -33,6 +34,8 @@ app.use('/api/suppliers', suppliersRoutes);
 app.use('/api/haccp',     haccpRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/fridges', fridgesRouter);
+app.use('/api/restaurant', restaurantRouter);
+
 
 
 // ─── HEALTH CHECK ────────────────────────────────────────
