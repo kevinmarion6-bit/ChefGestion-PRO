@@ -279,14 +279,14 @@ router.post('/temperature', requireAuth, upload.single('image'), async (req: Aut
     let serviceDate = new Date(now);
     let periode: 'MIDI' | 'SOIR';
 
-    if (currentHour >= 7 && currentHour < 16) {
-      periode = 'MIDI';
-    } else {
-      periode = 'SOIR';
-      if (currentHour >= 0 && currentHour < 7) {
-        serviceDate.setDate(serviceDate.getDate() - 1);
-      }
-    }
+    if (currentHour >= 2 && currentHour < 16) {
+  periode = 'MIDI';
+} else {
+  periode = 'SOIR';
+  if (currentHour >= 0 && currentHour < 2) {
+    serviceDate.setDate(serviceDate.getDate() - 1);
+  }
+}
 
     const dateString = serviceDate.toISOString().split('T')[0];
 

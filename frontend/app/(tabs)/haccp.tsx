@@ -112,7 +112,7 @@ export default function HaccpScreen() {
   const activeLogs = activeFridgeId
     ? logs.filter(l => 
         l.fridge_id === activeFridgeId || 
-        (l.fridge_nom && activeFridge && l.fridge_nom === activeFridge.nom)
+        (l.fridge_nom && activeFridge && l.fridge_nom === activeFridge.nom) ||
         (!l.fridge_id && !l.fridge_nom)
       )
     : logs;
