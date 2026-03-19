@@ -112,7 +112,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
     let currentService: 'MIDI' | 'SOIR';
     let serviceDateStr: string;
 
-    if (hourNow >= 2 && hourNow < 16) {
+    if (hourNow >= 2 && hourNow < 18) {
       currentService = 'MIDI';
       serviceDateStr = today;
     } else {
