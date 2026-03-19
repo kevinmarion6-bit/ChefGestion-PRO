@@ -31,15 +31,15 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
     const margeEstimee = facturesCount > 0 ? Math.max(55, 75 - facturesCount * 0.3) : null;
 
     // ─── ALERTES TEMPÉRATURE (aujourd'hui + veille si service tardif) ──
-    const today = new Date().toISOString().split('T')[0];
-    const nowForService = new Date();
-    const hourNow = nowForService.getHours();
+    const nowParis = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Paris' }));
+    const today = nowParis.toISOString().split('T')[0];
+    const hourNow = nowParis.getHours();
 
     // Entre 0h et 2h, le service SOIR de la veille est encore en cours
     // → on doit aussi chercher les logs de la veille
     const datesToQuery = [today];
     if (hourNow >= 0 && hourNow < 2) {
-      const yesterday = new Date(nowForService);
+      const yesterday = new Date(nowParis);
       yesterday.setDate(yesterday.getDate() - 1);
       datesToQuery.push(yesterday.toISOString().split('T')[0]);
     }
@@ -108,8 +108,8 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
     // ─── STATUT RELEVÉS TEMPÉRATURE ────────────────────────
     // Logique alignée avec scan.ts :
     //   0h-2h  → SOIR (service tardif de la veille, date = veille)
-    //   2h-16h → MIDI (date = aujourd'hui)
-    //   16h-0h → SOIR (date = aujourd'hui)
+    //   2h-18h → MIDI (date = aujourd'hui)
+    //   18h-0h → SOIR (date = aujourd'hui)
     let currentService: 'MIDI' | 'SOIR';
     let serviceDateStr: string;
 
@@ -120,7 +120,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
       currentService = 'SOIR';
       if (hourNow >= 0 && hourNow < 2) {
         // Service tardif → la date de service est la veille
-        const yesterday = new Date(nowForService);
+        const yesterday = new Date(nowParis);
         yesterday.setDate(yesterday.getDate() - 1);
         serviceDateStr = yesterday.toISOString().split('T')[0];
       } else {

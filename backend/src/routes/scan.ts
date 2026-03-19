@@ -274,7 +274,7 @@ router.post('/temperature', requireAuth, upload.single('image'), async (req: Aut
       .eq('id', userId);
 
     // Calcul de la date et de la période de service
-    const now = new Date();
+    const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Paris' }));
     const currentHour = now.getHours();
     let serviceDate = new Date(now);
     let periode: 'MIDI' | 'SOIR';
