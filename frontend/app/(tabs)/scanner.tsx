@@ -321,7 +321,19 @@ function ScanResult({ result }: { result: any }) {
     const rawTemp     = result.data?.temperature ?? 0;
     const displayTemp = savedTemp !== null ? savedTemp : rawTemp;
     const score       = result.data?.confiance ?? 0;
-    const tempColor   = displayTemp < 0 ? '#60A5FA' : displayTemp <= 4 ? '#4ADE80' : displayTemp <= 8 ? '#FACC15' : '#F87171';
+    const tempColor = (() => {
+      if (result.data?.fridge_temp_min !== undefined && result.data?.fridge_temp_max !== undefined) {
+        const min = result.data.fridge_temp_min;
+        const max = result.data.fridge_temp_max;
+        if (displayTemp >= min && displayTemp <= max) return '#4ADE80';
+        if (displayTemp >= min - 1 && displayTemp <= max + 1) return '#FACC15';
+        return '#F87171';
+      }
+      // Fallback sans plage
+      if (displayTemp >= 0 && displayTemp <= 4) return '#4ADE80';
+      if (displayTemp >= -1 && displayTemp <= 5) return '#FACC15';
+      return '#F87171';
+    })();
     const scoreColor  = score >= 75 ? '#4ADE80' : score >= 65 ? '#FACC15' : '#F87171';
     const scoreLabel  = score >= 75 ? 'FIABLE' : score >= 65 ? 'À VÉRIFIER' : 'INCERTAIN';
 

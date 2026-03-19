@@ -312,14 +312,29 @@ router.post('/temperature', requireAuth, upload.single('image'), async (req: Aut
         fridge_nom:    fridge_nom,
       }, { onConflict: 'user_id,fridge_id,date,periode' });
 
+    let fridge_temp_min: number | undefined;
+    let fridge_temp_max: number | undefined;
+    if (fridge_id) {
+      const { data: fridgeData } = await supabase
+        .from('fridges')
+        .select('temp_min, temp_max')
+        .eq('id', fridge_id)
+        .single();
+      if (fridgeData) {
+        fridge_temp_min = fridgeData.temp_min;
+        fridge_temp_max = fridgeData.temp_max;
+      }
+    }
+
     res.json({
       ok: true,
       data: {
         temperature,
         unite: '°C',
-        type_afficheur: method,
         confiance: confidence,
         count: currentScans + 1,
+        fridge_temp_min,
+        fridge_temp_max,
       }
     });
 

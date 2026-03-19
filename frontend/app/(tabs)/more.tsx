@@ -604,8 +604,9 @@ function HaccpPage({ goBack, state, addHaccpPhoto }: any) {
   const [loadingFridges, setLoadingFridges] = useState(true);
   const [showAddFridge, setShowAddFridge]   = useState(false);
   const [newFridgeName, setNewFridgeName]   = useState('');
-  const [newFridgeType, setNewFridgeType]   = useState<'positif' | 'negatif'>('positif');
-
+  const [newFridgeType, setNewFridgeType] = useState<'positif' | 'negatif' | 'cellule'>('positif');
+  const [tempRange, setTempRange] = useState<'poissons' | 'viandes' | 'legumes'>('viandes');
+  const [fridgeEmoji, setFridgeEmoji] = useState('🥩');
   const photos = state?.haccpPhotos || [];
 
   useEffect(() => { loadFridges(); }, []);
@@ -625,12 +626,21 @@ function HaccpPage({ goBack, state, addHaccpPhoto }: any) {
 
   async function addFridge() {
     if (!newFridgeName.trim()) { Alert.alert('Erreur', 'Donne un nom à cet équipement'); return; }
+    let temp_min = 0, temp_max = 4;
+    if (newFridgeType === 'negatif') { temp_min = -21; temp_max = -18; }
+    else if (newFridgeType === 'cellule') { temp_min = 0; temp_max = 3; }
+    else if (newFridgeType === 'positif') {
+      if (tempRange === 'poissons') { temp_min = 0; temp_max = 2; }
+      else if (tempRange === 'viandes') { temp_min = 0; temp_max = 4; }
+      else { temp_min = 0; temp_max = 8; }
+    }
+
     try {
       const token = await getToken();
       const res = await fetch('https://chefgestion-pro.onrender.com/api/fridges', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nom: newFridgeName.trim(), type: newFridgeType }),
+        body: JSON.stringify({ nom: newFridgeName.trim(), type: newFridgeType, temp_min, temp_max, emoji: fridgeEmoji }),
       });
       const json = await res.json();
       if (json.ok) {
@@ -692,7 +702,7 @@ function HaccpPage({ goBack, state, addHaccpPhoto }: any) {
             {fridges.map((f: any) => (
               <Card key={f.id} style={{ marginBottom: 8 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', padding: 12, gap: 12 }}>
-                  <Text style={{ fontSize: 24 }}>{f.type === 'negatif' ? '🧊' : '❄️'}</Text>
+                  <Text style={{ fontSize: 24 }}>{f.emoji || (f.type === 'negatif' ? '🧊' : '❄️')}</Text>
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: '#E8D5A3', fontSize: 14, fontWeight: 'bold' }}>{f.nom}</Text>
                     <Text style={{ color: '#9A8060', fontSize: 11, marginTop: 2 }}>
@@ -709,17 +719,92 @@ function HaccpPage({ goBack, state, addHaccpPhoto }: any) {
                 <Text style={{ color: '#D4AF37', fontSize: 12, fontFamily: 'Cinzel_700Bold', letterSpacing: 1 }}>NOUVEL ÉQUIPEMENT</Text>
                 <TextInput style={{ backgroundColor: '#111', borderWidth: 1, borderColor: '#D4AF37', borderRadius: 8, color: '#fff', padding: 12, fontSize: 14 }} value={newFridgeName} onChangeText={setNewFridgeName} placeholder="Ex: Frigo Viandes, Congélateur N°2..." placeholderTextColor="#444" />
                 <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <TouchableOpacity style={{ flex: 1, padding: 12, borderRadius: 8, alignItems: 'center', backgroundColor: newFridgeType === 'positif' ? '#D4AF37' : '#1a1a1a', borderWidth: 1, borderColor: '#D4AF37' }} onPress={() => setNewFridgeType('positif')}>
+                  <TouchableOpacity
+                    style={{ flex: 1, padding: 12, borderRadius: 8, alignItems: 'center', backgroundColor: newFridgeType === 'positif' ? '#D4AF37' : '#1a1a1a', borderWidth: 1, borderColor: '#D4AF37' }}
+                    onPress={() => { setNewFridgeType('positif'); setFridgeEmoji('🥩'); }}
+                  >
                     <Text style={{ fontSize: 20 }}>❄️</Text>
                     <Text style={{ color: newFridgeType === 'positif' ? '#000' : '#D4AF37', fontSize: 11, marginTop: 4, fontWeight: 'bold' }}>RÉFRIGÉRATEUR</Text>
-                    <Text style={{ color: newFridgeType === 'positif' ? '#333' : '#666', fontSize: 10 }}>0°C à 8°C</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={{ flex: 1, padding: 12, borderRadius: 8, alignItems: 'center', backgroundColor: newFridgeType === 'negatif' ? '#D4AF37' : '#1a1a1a', borderWidth: 1, borderColor: '#D4AF37' }} onPress={() => setNewFridgeType('negatif')}>
+                  <TouchableOpacity
+                    style={{ flex: 1, padding: 12, borderRadius: 8, alignItems: 'center', backgroundColor: newFridgeType === 'negatif' ? '#D4AF37' : '#1a1a1a', borderWidth: 1, borderColor: '#D4AF37' }}
+                    onPress={() => { setNewFridgeType('negatif'); setFridgeEmoji('🧊'); }}
+                  >
                     <Text style={{ fontSize: 20 }}>🧊</Text>
                     <Text style={{ color: newFridgeType === 'negatif' ? '#000' : '#D4AF37', fontSize: 11, marginTop: 4, fontWeight: 'bold' }}>CONGÉLATEUR</Text>
-                    <Text style={{ color: newFridgeType === 'negatif' ? '#333' : '#666', fontSize: 10 }}>-15°C à -25°C</Text>
                   </TouchableOpacity>
                 </View>
+
+                <TouchableOpacity
+                  style={{ padding: 12, borderRadius: 8, alignItems: 'center', backgroundColor: newFridgeType === 'cellule' ? '#D4AF37' : '#1a1a1a', borderWidth: 1, borderColor: '#D4AF37' }}
+                  onPress={() => { setNewFridgeType('cellule'); setFridgeEmoji('🌬️'); }}
+                >
+                  <Text style={{ fontSize: 20 }}>🌬️</Text>
+                  <Text style={{ color: newFridgeType === 'cellule' ? '#000' : '#D4AF37', fontSize: 11, marginTop: 4, fontWeight: 'bold' }}>CELLULE DE REFROIDISSEMENT RAPIDE</Text>
+                  <Text style={{ color: newFridgeType === 'cellule' ? '#333' : '#666', fontSize: 10 }}>+63°C → +10°C en 2h max</Text>
+                </TouchableOpacity>
+
+                {newFridgeType === 'positif' && (
+                  <View style={{ gap: 6, marginTop: 4 }}>
+                    <Text style={{ color: '#D4AF37', fontSize: 10, fontFamily: 'Cinzel_700Bold', letterSpacing: 1 }}>PLAGE DE TEMPÉRATURE</Text>
+
+                    <TouchableOpacity
+                      style={{ padding: 10, borderRadius: 8, backgroundColor: tempRange === 'poissons' ? 'rgba(212,175,55,0.2)' : '#111', borderWidth: 1, borderColor: tempRange === 'poissons' ? '#D4AF37' : '#333' }}
+                      onPress={() => { setTempRange('poissons'); setFridgeEmoji('🐟'); }}
+                    >
+                      <Text style={{ color: tempRange === 'poissons' ? '#D4AF37' : '#999', fontSize: 12, fontWeight: 'bold' }}>0°C à +2°C</Text>
+                      <Text style={{ color: '#666', fontSize: 10, marginTop: 2 }}>Poissons, coquillages/crustacés, viandes hachées/maturées</Text>
+                      {tempRange === 'poissons' && (
+                        <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                          <TouchableOpacity
+                            style={{ padding: 8, borderRadius: 8, backgroundColor: fridgeEmoji === '🐟' ? '#D4AF37' : '#222', borderWidth: 1, borderColor: fridgeEmoji === '🐟' ? '#D4AF37' : '#444' }}
+                            onPress={() => setFridgeEmoji('🐟')}
+                          >
+                            <Text style={{ fontSize: 22 }}>🐟</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={{ padding: 8, borderRadius: 8, backgroundColor: fridgeEmoji === '🍖' ? '#D4AF37' : '#222', borderWidth: 1, borderColor: fridgeEmoji === '🍖' ? '#D4AF37' : '#444' }}
+                            onPress={() => setFridgeEmoji('🍖')}
+                          >
+                            <Text style={{ fontSize: 22 }}>🍖</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={{ padding: 10, borderRadius: 8, backgroundColor: tempRange === 'viandes' ? 'rgba(212,175,55,0.2)' : '#111', borderWidth: 1, borderColor: tempRange === 'viandes' ? '#D4AF37' : '#333' }}
+                      onPress={() => { setTempRange('viandes'); setFridgeEmoji('🥩'); }}
+                    >
+                      <Text style={{ color: tempRange === 'viandes' ? '#D4AF37' : '#999', fontSize: 12, fontWeight: 'bold' }}>0°C à +4°C</Text>
+                      <Text style={{ color: '#666', fontSize: 10, marginTop: 2 }}>Viandes, BOF, produits sensibles</Text>
+                      {tempRange === 'viandes' && (
+                        <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                          <TouchableOpacity
+                            style={{ padding: 8, borderRadius: 8, backgroundColor: fridgeEmoji === '🥩' ? '#D4AF37' : '#222', borderWidth: 1, borderColor: fridgeEmoji === '🥩' ? '#D4AF37' : '#444' }}
+                            onPress={() => setFridgeEmoji('🥩')}
+                          >
+                            <Text style={{ fontSize: 22 }}>🥩</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={{ padding: 8, borderRadius: 8, backgroundColor: fridgeEmoji === '🧀' ? '#D4AF37' : '#222', borderWidth: 1, borderColor: fridgeEmoji === '🧀' ? '#D4AF37' : '#444' }}
+                            onPress={() => setFridgeEmoji('🧀')}
+                          >
+                            <Text style={{ fontSize: 22 }}>🧀</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={{ padding: 10, borderRadius: 8, backgroundColor: tempRange === 'legumes' ? 'rgba(212,175,55,0.2)' : '#111', borderWidth: 1, borderColor: tempRange === 'legumes' ? '#D4AF37' : '#333' }}
+                      onPress={() => { setTempRange('legumes'); setFridgeEmoji('🥗'); }}
+                    >
+                      <Text style={{ color: tempRange === 'legumes' ? '#D4AF37' : '#999', fontSize: 12, fontWeight: 'bold' }}>0°C à +8°C</Text>
+                      <Text style={{ color: '#666', fontSize: 10, marginTop: 2 }}>Fruits, légumes, herbes fraîches</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <TouchableOpacity style={{ flex: 1, backgroundColor: '#1a1a1a', borderRadius: 8, padding: 12, alignItems: 'center' }} onPress={() => { setShowAddFridge(false); setNewFridgeName(''); }}>
                     <Text style={{ color: '#666' }}>Annuler</Text>

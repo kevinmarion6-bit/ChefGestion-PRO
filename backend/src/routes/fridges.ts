@@ -44,6 +44,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res: Response) => {
         type,
         temp_min: temp_min ?? defaultMin,
         temp_max: temp_max ?? defaultMax,
+        emoji: req.body.emoji || null,
       })
       .select()
       .single();

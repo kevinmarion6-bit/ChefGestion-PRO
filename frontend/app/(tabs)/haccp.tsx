@@ -89,9 +89,20 @@ export default function HaccpScreen() {
   // ─── COULEUR TEMPÉRATURE ─────────────────────────────────
   function getTempColor(val: number | null | undefined): string {
     if (val === null || val === undefined) return '#555';
-    if (val < 0)  return '#60A5FA';
-    if (val <= 4) return '#4ADE80';
-    if (val <= 8) return '#FACC15';
+
+    if (activeFridge) {
+      const min = activeFridge.temp_min ?? (activeFridge.type === 'negatif' ? -21 : 0);
+      const max = activeFridge.temp_max ?? (activeFridge.type === 'negatif' ? -18 : 4);
+      const tolerance = 1;
+
+      if (val >= min && val <= max) return '#4ADE80';
+      if (val >= min - tolerance && val <= max + tolerance) return '#FACC15';
+      return '#F87171';
+    }
+
+    // Fallback sans frigo : plage par défaut 0-4°C
+    if (val >= 0 && val <= 4) return '#4ADE80';
+    if (val >= -1 && val <= 5) return '#FACC15';
     return '#F87171';
   }
 
@@ -357,7 +368,7 @@ export default function HaccpScreen() {
                       onPress={() => setActiveFridgeId(fridge.id)}
                       activeOpacity={0.7}
                     >
-                      <Text style={{ fontSize: 16 }}>{isFreez ? '🧊' : '❄️'}</Text>
+                      <Text style={{ fontSize: 16 }}>{fridge.emoji || (isFreez ? '🧊' : '❄️')}</Text>
                       <Text style={[st.tabLabel, isActive && st.tabLabelActive]} numberOfLines={1}>
                         {fridge.nom}
                       </Text>
