@@ -4,6 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '@/lib/context';
 import { Restaurant } from '@/lib/api';
 import { router } from 'expo-router';
+import { Archives } from '@/lib/api';
+import { loadPushPreference, savePushPreference } from '@/lib/notifications';
 
 const C = { black: '#000', blackS: '#0C0C0C', charcoal: '#1A1A1A', gold: '#D4AF37', goldL: '#EAD06A', goldD: '#A07D1C', bronze: '#CD7F32', cream: '#F5F5DC', creamD: '#EDE8D0', muted: '#6B6050', mutedL: '#8A7A60', ok: '#4ADE80', warn: '#FACC15', bad: '#F87171', blue: '#60A5FA' };
 
@@ -12,6 +14,7 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = React.useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [restaurantName, setRestaurantName] = useState('');
+  const [archiveAlert, setArchiveAlert] = useState<any>(null);
 
   const onRefresh = async () => { setRefreshing(true); await refreshDashboard(); setRefreshing(false); };
 
@@ -19,8 +22,19 @@ export default function DashboardScreen() {
   const kpis = dashboard?.kpis;
 
   useEffect(() => {
-    Restaurant.get().then(r => { if (r?.nom) setRestaurantName(r.nom); }).catch(() => {});
-  }, []);
+  // Charger le nom du restaurant
+  Restaurant.get().then(r => { if (r?.nom) setRestaurantName(r.nom); }).catch(() => {});
+  
+  // ⭐ NOUVEAU : Charger l'état sauvegardé du toggle notification
+  loadPushPreference().then(enabled => setPushEnabled(enabled));
+ 
+  // ⭐ NOUVEAU : Vérifier si le mois précédent a des relevés incomplets
+  Archives.checkPrevious().then(data => {
+    if (data && !data.has_archive && data.fridge_count > 0) {
+      setArchiveAlert(data);
+    }
+  }).catch(() => {});
+}, []);
 
   // Données nouvelles depuis le dashboard enrichi
   const tempAlerts = (dashboard as any)?.tempAlerts ?? [];
@@ -242,16 +256,56 @@ export default function DashboardScreen() {
                 </Text>
               </View>
               <Switch
-                value={pushEnabled}
-                onValueChange={setPushEnabled}
-                trackColor={{ false: '#333', true: 'rgba(212,175,55,0.3)' }}
-                thumbColor={pushEnabled ? C.gold : '#666'}
-                ios_backgroundColor="#333"
-              />
+               value={pushEnabled}
+               onValueChange={async (val) => {
+               setPushEnabled(val);
+               await savePushPreference(val);
+               }}
+               trackColor={{ false: '#333', true: 'rgba(212,175,55,0.3)' }}
+               thumbColor={pushEnabled ? C.gold : '#666'}
+               ios_backgroundColor="#333"
+               />
             </View>
           </View>
         </View>
 
+{archiveAlert && !archiveAlert.is_complete && (
+  <View style={{ marginTop: 16 }}>
+    <STitle>Archives HACCP</STitle>
+    <View style={s.alertModule}>
+      <View style={s.alertModuleLine} />
+      <Text style={{ fontSize: 20, marginBottom: 6 }}>📋</Text>
+      <Text style={s.alertModuleLabel}>Mois précédent incomplet</Text>
+      
+      <View style={{ alignItems: 'center', marginTop: 8, gap: 6 }}>
+        <Text style={{ fontSize: 28, fontFamily: 'Cinzel_700SemiBold', color: archiveAlert.completion_rate >= 80 ? C.warn : C.bad }}>
+          {archiveAlert.completion_rate}%
+        </Text>
+        <Text style={{ fontSize: 11, color: C.muted, textAlign: 'center' }}>
+          des relevés remplis pour {archiveAlert.month_label}
+        </Text>
+        <Text style={{ fontSize: 11, color: C.mutedL, textAlign: 'center', marginTop: 2 }}>
+          {archiveAlert.log_count} / {archiveAlert.expected_logs} relevés
+        </Text>
+      </View>
+ 
+      <View style={{ marginTop: 10, backgroundColor: 'rgba(248,113,113,0.08)', borderWidth: 1, borderColor: 'rgba(248,113,113,0.2)', borderRadius: 8, padding: 10 }}>
+        <Text style={{ fontSize: 11, color: C.bad, textAlign: 'center', lineHeight: 16 }}>
+          ⚠️ Complétez vos relevés avant l'archivage automatique !
+        </Text>
+      </View>
+ 
+      <TouchableOpacity
+        style={{ marginTop: 10, backgroundColor: 'rgba(212,175,55,0.1)', borderWidth: 1, borderColor: C.gold, borderRadius: 8, padding: 10, alignItems: 'center' }}
+        onPress={() => router.push('/(tabs)/haccp')}
+      >
+        <Text style={{ color: C.gold, fontSize: 11, fontFamily: 'Cinzel_700SemiBold', letterSpacing: 1 }}>
+          📝 COMPLÉTER LES RELEVÉS
+        </Text>
+      </TouchableOpacity>
+    </View>
+  </View>
+)}
         <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>

@@ -15,6 +15,9 @@ import dashboardRoutes from './routes/dashboard';
 import fridgesRouter   from './routes/fridges';
 import restaurantRouter from './routes/restaurant';
 import { supabase }    from './services/supabase';
+import settingsRouter   from './routes/settings';
+import archivesRouter   from './routes/archives';
+import { runArchiveCron, runIncompleteMonthNotification } from './services/archiveGenerator';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3001', 10);
@@ -35,7 +38,8 @@ app.use('/api/haccp',     haccpRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/fridges', fridgesRouter);
 app.use('/api/restaurant', restaurantRouter);
-
+app.use('/api/settings',  settingsRouter);
+app.use('/api/archives',  archivesRouter);
 
 
 // ─── HEALTH CHECK ────────────────────────────────────────
@@ -76,17 +80,16 @@ app.listen(PORT, '0.0.0.0', () => {
     }
   }
 
-  console.log('\n╔══════════════════════════════════════════╗');
-  console.log('║      ChefGestion Pro — Backend API      ║');
-  console.log('╠══════════════════════════════════════════╣');
-  console.log(`║  Port    : ${PORT}                            ║`);
-  localIPs.forEach(ip => {
-    console.log(`║  IP LAN  : http://${ip}:${PORT}/api    ║`);
-  });
-  console.log('╠══════════════════════════════════════════╣');
-  console.log('║  → Copiez votre IP LAN dans frontend/   ║');
-  console.log('║    lib/config.ts (variable API_BASE_URL) ║');
-  console.log('╚══════════════════════════════════════════╝\n');
+  // Cron : Archives + Notifications (au démarrage puis toutes les 6h)
+  setTimeout(() => {
+    runArchiveCron().catch(console.error);
+    runIncompleteMonthNotification().catch(console.error);
+  }, 10000);
+
+  setInterval(() => {
+    runArchiveCron().catch(console.error);
+    runIncompleteMonthNotification().catch(console.error);
+  }, 6 * 60 * 60 * 1000);
 });
 
 export default app;

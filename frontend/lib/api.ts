@@ -14,7 +14,7 @@ const BASE_URL = (() => {
 async function apiFetch<T>(path: string, options: RequestInit = {}, isAuthAction = false): Promise<T> {
   const token = await getToken();
   const controller = new AbortController();
-  const timeout = isAuthAction ? 35000 : 20000;
+  const timeout = isAuthAction ? 55000 : 55000;
   const timer = setTimeout(() => controller.abort(), timeout);
 
   try {
@@ -424,6 +424,61 @@ export const Restaurant = {
 export async function checkHealth() {
   return apiFetch<{ status: string; version: string; gemini: boolean }>('/health');
 }
+// ═══════════════════════════════════════════════════════════
+// AJOUTS POUR : frontend/lib/api.ts
+// Ajouter ce bloc AVANT le commentaire "// ─── HELPERS"
+// ═══════════════════════════════════════════════════════════
+
+// ─── ARCHIVES HACCP ──────────────────────────────────────
+
+export const Archives = {
+  async list() {
+    return apiFetch<any[]>('/archives');
+  },
+
+  async generate(year: number, month: number) {
+    return apiFetch<any>('/archives/generate', {
+      method: 'POST',
+      body: JSON.stringify({ year, month }),
+    });
+  },
+
+  async checkPrevious() {
+    return apiFetch<{
+      year: number;
+      month: number;
+      month_label: string;
+      has_archive: boolean;
+      is_complete: boolean;
+      completion_rate: number;
+      log_count: number;
+      expected_logs: number;
+      fridge_count: number;
+    }>('/archives/check-previous');
+  },
+};
+
+// ─── SETTINGS ────────────────────────────────────────────
+
+export const Settings = {
+  async get() {
+    return apiFetch<{ push_temp_reminder: boolean; push_token?: string }>('/settings');
+  },
+
+  async savePushToken(push_token: string) {
+    return apiFetch<any>('/settings/push-token', {
+      method: 'POST',
+      body: JSON.stringify({ push_token }),
+    });
+  },
+
+  async savePushPreference(push_temp_reminder: boolean) {
+    return apiFetch<any>('/settings/push-preference', {
+      method: 'POST',
+      body: JSON.stringify({ push_temp_reminder }),
+    });
+  },
+};
 
 // ─── HELPERS ─────────────────────────────────────────────
 

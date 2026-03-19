@@ -6,6 +6,8 @@ import { useLocalSearchParams } from 'expo-router';
 import * as Print from 'expo-print';
 import { getToken } from '../../lib/auth';
 import { Restaurant } from '@/lib/api';
+import { Archives } from '@/lib/api';
+import { Linking } from 'react-native';
 
 const API_URL = 'https://chefgestion-pro.onrender.com';
 
@@ -24,6 +26,9 @@ export default function HaccpScreen() {
   const [selectedPeriode, setSelectedPeriode]   = useState('');
   const [selectedFridgeId, setSelectedFridgeId] = useState<string | null>(null);
   const [restaurantName, setRestaurantName]     = useState('');
+  const [archives, setArchives] = useState<any[]>([]);
+  const [archivesLoading, setArchivesLoading] = useState(false);
+  const [showArchives, setShowArchives] = useState(false);
 
   const now          = new Date();
   const viewMonthStr = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
@@ -31,6 +36,33 @@ export default function HaccpScreen() {
   const viewMonthLabel = `${MOIS_FR[now.getMonth()]} ${now.getFullYear()}`;
   const daysInMonth  = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
   const todayStr     = now.toISOString().split('T')[0];
+
+  async function loadArchives() {
+  setArchivesLoading(true);
+  try {
+    const data = await Archives.list();
+    setArchives(data ?? []);
+  } catch (err) {
+    console.error('[Archives]', err);
+  } finally {
+    setArchivesLoading(false);
+  }
+}
+ 
+async function generateCurrentArchive() {
+  const now = new Date();
+  const prevMonth = now.getMonth();
+  const prevYear = prevMonth === 0 ? now.getFullYear() - 1 : now.getFullYear();
+  const prevMonthNum = prevMonth === 0 ? 12 : prevMonth;
+  
+  try {
+    await Archives.generate(prevYear, prevMonthNum);
+    Alert.alert('✅ Succès', 'Archive générée avec succès !');
+    loadArchives();
+  } catch (err: any) {
+    Alert.alert('Erreur', err?.message || 'Impossible de générer l\'archive.');
+  }
+}
 
   // ─── RE-FETCH À CHAQUE FOCUS SUR L'ONGLET ───────────────
   useEffect(() => {
@@ -391,6 +423,7 @@ export default function HaccpScreen() {
                     </TouchableOpacity>
                   );
                 })}
+                
               </ScrollView>
             </View>
           )}
@@ -408,6 +441,121 @@ export default function HaccpScreen() {
             {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day =>
               renderDayRow(day)
             )}
+            {/* ─── SECTION ARCHIVES MENSUELLES ─────────────────── */}
+<View style={{ marginTop: 24 }}>
+  <TouchableOpacity
+    style={{
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      backgroundColor: '#1A1A1A', borderRadius: 12, padding: 16,
+      borderWidth: 1, borderColor: 'rgba(212,175,55,0.15)',
+    }}
+    onPress={() => {
+      if (!showArchives) loadArchives();
+      setShowArchives(!showArchives);
+    }}
+  >
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+      <Text style={{ fontSize: 22 }}>📦</Text>
+      <View>
+        <Text style={{ color: '#F5F5DC', fontSize: 14, fontFamily: 'Cinzel_700Bold', letterSpacing: 1 }}>
+          Archives Mensuelles
+        </Text>
+        <Text style={{ color: '#6B6050', fontSize: 11, marginTop: 2 }}>
+          PDF automatiques • Conservation 1 an
+        </Text>
+      </View>
+    </View>
+    <Text style={{ color: '#D4AF37', fontSize: 16 }}>{showArchives ? '▲' : '▼'}</Text>
+  </TouchableOpacity>
+ 
+  {showArchives && (
+    <View style={{ marginTop: 12, gap: 10 }}>
+      {/* Bouton génération manuelle */}
+      <TouchableOpacity
+        style={{
+          backgroundColor: 'rgba(212,175,55,0.1)', borderWidth: 1, borderColor: '#D4AF37',
+          borderRadius: 10, padding: 14, alignItems: 'center',
+        }}
+        onPress={generateCurrentArchive}
+      >
+        <Text style={{ color: '#D4AF37', fontSize: 12, fontFamily: 'Cinzel_700Bold', letterSpacing: 1 }}>
+          📄 GÉNÉRER L'ARCHIVE DU MOIS PRÉCÉDENT
+        </Text>
+      </TouchableOpacity>
+ 
+      {archivesLoading ? (
+        <ActivityIndicator color="#D4AF37" style={{ marginTop: 16 }} />
+      ) : archives.length === 0 ? (
+        <View style={{ padding: 24, alignItems: 'center' }}>
+          <Text style={{ fontSize: 28, opacity: 0.5 }}>📭</Text>
+          <Text style={{ color: '#6B6050', fontSize: 12, fontStyle: 'italic', marginTop: 6 }}>
+            Aucune archive disponible
+          </Text>
+        </View>
+      ) : (
+        archives.map((a: any) => (
+          <View
+            key={a.id}
+            style={{
+              backgroundColor: '#111', borderRadius: 10, padding: 14,
+              borderWidth: 1,
+              borderColor: a.is_expiring_soon ? 'rgba(248,113,113,0.4)' : 'rgba(212,175,55,0.1)',
+            }}
+          >
+            {/* Alerte expiration */}
+            {a.is_expiring_soon && (
+              <View style={{
+                backgroundColor: 'rgba(248,113,113,0.1)', borderRadius: 6,
+                padding: 8, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 6,
+              }}>
+                <Text style={{ fontSize: 12 }}>⚠️</Text>
+                <Text style={{ color: '#F87171', fontSize: 10, fontWeight: 'bold' }}>
+                  EXPIRE DANS {a.days_until_expiry} JOUR{a.days_until_expiry > 1 ? 'S' : ''} — Téléchargez-la !
+                </Text>
+              </View>
+            )}
+ 
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: '#F5F5DC', fontSize: 14, fontFamily: 'Cinzel_400Regular', textTransform: 'capitalize' }}>
+                  📅 {a.month_label}
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 12, marginTop: 6 }}>
+                  <Text style={{ color: '#6B6050', fontSize: 10 }}>
+                    {a.is_complete ? '✅ Complet' : '⚠️ Incomplet'}
+                  </Text>
+                  <Text style={{ color: '#6B6050', fontSize: 10 }}>
+                    🌡️ {a.log_count} relevés
+                  </Text>
+                  <Text style={{ color: '#6B6050', fontSize: 10 }}>
+                    ❄️ {a.fridge_count} frigos
+                  </Text>
+                  <Text style={{ color: '#6B6050', fontSize: 10 }}>
+                    📦 {a.file_size} KB
+                  </Text>
+                </View>
+              </View>
+ 
+              <TouchableOpacity
+                style={{
+                  backgroundColor: '#D4AF37', borderRadius: 8,
+                  paddingHorizontal: 14, paddingVertical: 8,
+                }}
+                onPress={() => {
+                  if (a.download_url) {
+                    Linking.openURL(a.download_url);
+                  }
+                }}
+              >
+                <Text style={{ color: '#000', fontSize: 11, fontWeight: 'bold' }}>📥 PDF</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ))
+      )}
+    </View>
+  )}
+</View>
             <View style={{ height: 40 }} />
           </ScrollView>
         </View>

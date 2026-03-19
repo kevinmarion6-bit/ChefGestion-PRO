@@ -5,7 +5,7 @@ import * as Print from 'expo-print';
 import { Colors, Spacing, Radius } from '@/constants/Theme';
 import { Btn } from '@/components/UI';
 import { useApp } from '@/lib/context';
-import { Scan } from '@/lib/api';
+import { Scan, Restaurant } from '@/lib/api';
 import { Image } from 'react-native';
 // ─── ACCORDION ───────────────────────────────────────────
 function Accordion({ icon, title, children }: { icon: string; title: string; children: React.ReactNode }) {
@@ -55,7 +55,12 @@ function ResultBox({ items }: { items: { label: string; value: string }[] }) {
 
 // ─── MAIN ────────────────────────────────────────────────
 export default function ToolsScreen() {
-const { user } = useApp(); 
+const { user } = useApp();
+const [restaurantName, setRestaurantName] = useState('');
+
+React.useEffect(() => {
+  Restaurant.get().then(r => { if (r?.nom) setRestaurantName(r.nom); }).catch(() => {});
+}, []); 
   // Marge
   const [mPV, setMPV] = useState('');
   const [mCM, setMCM] = useState('');
@@ -134,21 +139,480 @@ const { user } = useApp();
   // ─── PRINT FICHE ─────
   async function printFiche() {
     const fc = ficheCalc();
-    const rows = ficheIngs.map(i =>
-      `<tr><td>${i.d}</td><td>${i.u}</td><td>${parseFloat(i.p || '0').toFixed(3)}€</td><td>${parseFloat(i.q || '0').toFixed(3)}</td><td>${((parseFloat(i.p || '0')) * (parseFloat(i.q || '0'))).toFixed(3)}€</td></tr>`
+    const logoUrl = 'https://osnckjlgqqawcgduideb.supabase.co/storage/v1/object/public/assets/logo.png';
+    const chefName = user?.name || 'Le Chef';
+    const restName = restaurantName || '';
+    const today = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+    const year = new Date().getFullYear();
+
+    const rows = ficheIngs.map((i, idx) => {
+      const prix = parseFloat(i.p || '0');
+      const qte = parseFloat(i.q || '0');
+      const total = prix * qte;
+      return `<tr class="${idx % 2 === 0 ? 'even' : 'odd'}">
+        <td class="td-nom">${i.d || '—'}</td>
+        <td class="td-center">${i.u}</td>
+        <td class="td-right">${prix.toFixed(3)} €</td>
+        <td class="td-center">${qte.toFixed(3)}</td>
+        <td class="td-right td-total">${total.toFixed(3)} €</td>
+      </tr>`;
+    }).join('');
+
+    // Formater la progression avec des numéros d'étapes
+    const progression = (fProg || '—').split('\n').filter(l => l.trim()).map((line, i) => 
+      `<div class="step"><span class="step-num">${i + 1}</span><span class="step-text">${line.trim()}</span></div>`
     ).join('');
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
-      <style>body{font-family:Georgia,serif;max-width:740px;margin:32px auto;}h1{text-align:center;font-size:20px;border-bottom:2px solid #D4AF37;padding-bottom:10px;letter-spacing:2px;}
-      .meta{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:18px 0;}.meta div{border:1px solid #ddd;padding:10px;}
-      .meta label{font-size:9px;text-transform:uppercase;color:#666;display:block;}.meta span{font-size:18px;color:#A07D1C;font-weight:bold;}
-      table{width:100%;border-collapse:collapse;}th{background:#111;color:#D4AF37;padding:8px;font-size:11px;text-align:left;}
-      td{padding:7px 8px;border-bottom:1px solid #eee;}h2{font-size:13px;letter-spacing:2px;border-bottom:1px solid #D4AF37;margin:18px 0 10px;}
-      pre{white-space:pre-wrap;font-size:13px;line-height:1.6;}</style></head><body>
-      <h1>FICHE TECHNIQUE DE PRODUCTION 2024</h1>
-      <div class="meta"><div><label>Nom du plat</label><span>${fNom || 'Sans titre'}</span></div><div><label>Nb portions</label><span>${fPortions}</span></div>
-      <div><label>Total PR HT</label><span>${fc.total.toFixed(2)}€</span></div><div><label>PV HT / Taux marge</label><span>${fc.pvht.toFixed(2)}€ / ${fc.tm.toFixed(1)}%</span></div></div>
-      <table><thead><tr><th>Denrée</th><th>Unité</th><th>Prix HT</th><th>Qté</th><th>PR HT</th></tr></thead><tbody>${rows}</tbody></table>
-      <h2>PROGRESSION DE LA RECETTE</h2><pre>${fProg || '—'}</pre></body></html>`;
+
+    const html = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Lato:wght@300;400;700&display=swap');
+
+    @page { 
+      margin: 0; 
+      size: A4;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Lato', 'Helvetica Neue', sans-serif;
+      color: #2C2C2C;
+      background: #FFFFFF;
+      max-width: 100%;
+      padding: 0;
+    }
+
+    /* ─── EN-TÊTE ─────────────────────────── */
+    .header {
+      background: linear-gradient(135deg, #0C0C0C 0%, #1A1A1A 100%);
+      padding: 28px 40px;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .header-logo {
+      width: 58px;
+      height: 58px;
+      border-radius: 12px;
+      border: 2px solid #D4AF37;
+    }
+
+    .header-info {
+      flex: 1;
+    }
+
+    .header-brand {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 10px;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: #D4AF37;
+      margin-bottom: 2px;
+    }
+
+    .header-restaurant {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 18px;
+      color: #F5F5DC;
+      font-weight: 600;
+      letter-spacing: 1px;
+    }
+
+    .header-chef {
+      font-size: 11px;
+      color: #8A7A60;
+      margin-top: 3px;
+      font-style: italic;
+    }
+
+    .header-date {
+      font-size: 10px;
+      color: #6B6050;
+      text-align: right;
+    }
+
+    /* ─── GOLD BAR ─────────────────────────── */
+    .gold-bar {
+      height: 3px;
+      background: linear-gradient(90deg, #A07D1C, #D4AF37, #EAD06A, #D4AF37, #A07D1C);
+    }
+
+    /* ─── TITRE FICHE ─────────────────────── */
+    .fiche-title-section {
+      padding: 24px 40px 0;
+      text-align: center;
+    }
+
+    .fiche-title-box {
+      border: 2px solid #D4AF37;
+      border-radius: 8px;
+      padding: 16px 24px;
+      display: inline-block;
+      background: linear-gradient(135deg, rgba(212,175,55,0.04) 0%, rgba(212,175,55,0.01) 100%);
+    }
+
+    .fiche-label {
+      font-size: 8px;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: #A07D1C;
+      margin-bottom: 6px;
+    }
+
+    .fiche-title {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 26px;
+      color: #1A1A1A;
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+
+    /* ─── KPI CARDS ─────────────────────────── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr 1fr;
+      gap: 12px;
+      padding: 20px 40px;
+    }
+
+    .kpi-card {
+      border: 1px solid #E8E0D0;
+      border-radius: 8px;
+      padding: 14px 10px;
+      text-align: center;
+      background: #FAFAF7;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .kpi-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: #D4AF37;
+    }
+
+    .kpi-icon {
+      font-size: 16px;
+      margin-bottom: 4px;
+    }
+
+    .kpi-label {
+      font-size: 7px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #8A7A60;
+      margin-bottom: 6px;
+    }
+
+    .kpi-value {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 20px;
+      color: #A07D1C;
+      font-weight: 700;
+    }
+
+    /* ─── SECTION TITLE ────────────────────── */
+    .section {
+      padding: 0 40px;
+      margin-bottom: 20px;
+    }
+
+    .section-header {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .section-icon {
+      font-size: 16px;
+    }
+
+    .section-title {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 13px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #1A1A1A;
+      font-weight: 600;
+    }
+
+    .section-line {
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, #D4AF37, transparent);
+    }
+
+    /* ─── TABLEAU INGRÉDIENTS ──────────────── */
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #E8E0D0;
+    }
+
+    thead th {
+      background: linear-gradient(135deg, #111111 0%, #1A1A1A 100%);
+      color: #D4AF37;
+      padding: 10px 12px;
+      font-size: 9px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      font-weight: 700;
+      text-align: left;
+    }
+
+    thead th:last-child {
+      text-align: right;
+    }
+
+    .td-nom { 
+      padding: 9px 12px; 
+      font-weight: 400;
+      font-size: 12px;
+    }
+
+    .td-center { 
+      padding: 9px 12px; 
+      text-align: center; 
+      font-size: 12px;
+      color: #555;
+    }
+
+    .td-right { 
+      padding: 9px 12px; 
+      text-align: right; 
+      font-size: 12px;
+      font-family: 'Lato', monospace;
+    }
+
+    .td-total {
+      color: #A07D1C;
+      font-weight: 700;
+    }
+
+    tr.even { background: #FFFFFF; }
+    tr.odd  { background: #FAFAF7; }
+
+    /* Ligne total */
+    .total-row {
+      background: linear-gradient(135deg, rgba(212,175,55,0.08) 0%, rgba(212,175,55,0.03) 100%) !important;
+      border-top: 2px solid #D4AF37;
+    }
+
+    .total-row td {
+      padding: 12px;
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    /* ─── PROGRESSION ──────────────────────── */
+    .progression-box {
+      background: #FAFAF7;
+      border: 1px solid #E8E0D0;
+      border-radius: 8px;
+      padding: 20px;
+    }
+
+    .step {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 10px;
+      line-height: 1.6;
+    }
+
+    .step:last-child { margin-bottom: 0; }
+
+    .step-num {
+      background: #D4AF37;
+      color: #FFFFFF;
+      font-size: 10px;
+      font-weight: 700;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .step-text {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 12px;
+      color: #333;
+      line-height: 1.7;
+      flex: 1;
+    }
+
+    /* ─── PIED DE PAGE ─────────────────────── */
+    .footer {
+      margin-top: 30px;
+      border-top: 2px solid #D4AF37;
+      padding: 16px 40px;
+      display: flex;
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .footer-left {
+      font-size: 9px;
+      color: #8A7A60;
+      font-style: italic;
+    }
+
+    .footer-center {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 8px;
+      letter-spacing: 3px;
+      color: #D4AF37;
+      text-transform: uppercase;
+    }
+
+    .footer-right {
+      font-size: 9px;
+      color: #8A7A60;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- EN-TÊTE -->
+  <div class="header">
+    <img src="${logoUrl}" class="header-logo" />
+    <div class="header-info">
+      <div class="header-brand">✦ ChefGestion Pro ✦</div>
+      ${restName ? `<div class="header-restaurant">🍽️ ${restName}</div>` : ''}
+      <div class="header-chef">👨‍🍳 ${chefName}</div>
+    </div>
+    <div class="header-date">📅 ${today}</div>
+  </div>
+
+  <div class="gold-bar"></div>
+
+  <!-- TITRE DU PLAT -->
+  <div class="fiche-title-section">
+    <div class="fiche-title-box">
+      <div class="fiche-label">📋 Fiche Technique de Production ${year}</div>
+      <div class="fiche-title">${fNom || 'Sans titre'}</div>
+    </div>
+  </div>
+
+  <!-- KPI CARDS -->
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-icon">🍽️</div>
+      <div class="kpi-label">Nb Portions</div>
+      <div class="kpi-value">${fPortions}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon">💰</div>
+      <div class="kpi-label">Coût Total HT</div>
+      <div class="kpi-value">${fc.total.toFixed(2)}€</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon">🏷️</div>
+      <div class="kpi-label">Prix / Portion</div>
+      <div class="kpi-value">${fc.pp.toFixed(2)}€</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon">📊</div>
+      <div class="kpi-label">Taux Marge</div>
+      <div class="kpi-value">${fc.tm.toFixed(1)}%</div>
+    </div>
+  </div>
+
+  <!-- TABLEAU INGRÉDIENTS -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-icon">🥘</span>
+      <span class="section-title">Ingrédients & Valorisation</span>
+      <div class="section-line"></div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Denrée</th>
+          <th style="text-align:center;">Unité</th>
+          <th style="text-align:right;">Prix Unit. HT</th>
+          <th style="text-align:center;">Quantité</th>
+          <th style="text-align:right;">PR HT</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows}
+        <tr class="total-row">
+          <td colspan="4" style="text-align:right; color:#1A1A1A;">TOTAL COÛT MATIÈRE HT</td>
+          <td class="td-right td-total" style="font-size:15px;">${fc.total.toFixed(2)} €</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- RÉSUMÉ FINANCIER -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-icon">💶</span>
+      <span class="section-title">Synthèse Financière</span>
+      <div class="section-line"></div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;">
+      <div class="kpi-card">
+        <div class="kpi-label">PV HT</div>
+        <div class="kpi-value">${fc.pvht.toFixed(2)}€</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Marge Brute</div>
+        <div class="kpi-value">${fc.mb.toFixed(2)}€</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Prix Portion Avec Perte</div>
+        <div class="kpi-value">${fc.ppav.toFixed(2)}€</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROGRESSION -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-icon">👨‍🍳</span>
+      <span class="section-title">Progression de la Recette</span>
+      <div class="section-line"></div>
+    </div>
+
+    <div class="progression-box">
+      ${progression}
+    </div>
+  </div>
+
+  <!-- PIED DE PAGE -->
+  <div class="footer">
+    <div class="footer-left">📄 Document généré automatiquement</div>
+    <div class="footer-center">✦ ChefGestion Pro ✦</div>
+    <div class="footer-right">© ${year} — Tous droits réservés</div>
+  </div>
+
+</body>
+</html>`;
+
     await Print.printAsync({ html });
   }
 
