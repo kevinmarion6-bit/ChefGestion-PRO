@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, ScrollView, Alert, Modal, TextInput, TouchableOpacity, Image, Keyboard, TouchableWithoutFeedback } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { useLocalSearchParams } from 'expo-router';
 import * as Print from 'expo-print';
 import { getToken } from '../../lib/auth';
 import { Restaurant } from '@/lib/api';
@@ -10,6 +11,7 @@ const API_URL = 'https://chefgestion-pro.onrender.com';
 
 export default function HaccpScreen() {
   const navigation = useNavigation();
+  const { fridgeId } = useLocalSearchParams<{ fridgeId?: string }>();
   const [logs, setLogs]                         = useState<any[]>([]);
   const [fridges, setFridges]                   = useState<any[]>([]);
   const [activeFridgeId, setActiveFridgeId]     = useState<string | null>(null);
@@ -45,12 +47,21 @@ export default function HaccpScreen() {
     Restaurant.get().then(r => { if (r?.nom) setRestaurantName(r.nom); }).catch(() => {});
   }, []);
 
-  // ─── Sélectionner automatiquement le 1er frigo ──────────
+  // ─── Sélectionner le frigo (param URL ou 1er par défaut) ──
   useEffect(() => {
-    if (fridges.length > 0 && !activeFridgeId) {
+    if (fridges.length === 0) return;
+
+    // Si on arrive depuis une alerte du dashboard avec un fridgeId
+    if (fridgeId && fridges.some(f => f.id === fridgeId)) {
+      setActiveFridgeId(fridgeId);
+      return;
+    }
+
+    // Sinon, sélectionner le 1er frigo par défaut
+    if (!activeFridgeId) {
       setActiveFridgeId(fridges[0].id);
     }
-  }, [fridges]);
+  }, [fridges, fridgeId]);
 
   // ─── CHARGER LES FRIGOS ─────────────────────────────────
   const fetchFridges = async () => {

@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, Image, StyleSheet, RefreshCon
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '@/lib/context';
 import { Restaurant } from '@/lib/api';
+import { router } from 'expo-router';
 
 const C = { black: '#000', blackS: '#0C0C0C', charcoal: '#1A1A1A', gold: '#D4AF37', goldL: '#EAD06A', goldD: '#A07D1C', bronze: '#CD7F32', cream: '#F5F5DC', creamD: '#EDE8D0', muted: '#6B6050', mutedL: '#8A7A60', ok: '#4ADE80', warn: '#FACC15', bad: '#F87171', blue: '#60A5FA' };
 
@@ -74,11 +75,22 @@ export default function DashboardScreen() {
               </View>
             ) : (
               tempAlerts.slice(0, 3).map((a: any, i: number) => (
-                <View key={i} style={s.alertTempRow}>
+                <TouchableOpacity
+                  key={i}
+                  style={s.alertTempRow}
+                  activeOpacity={0.6}
+                  onPress={() => {
+                    router.push({
+                      pathname: '/(tabs)/haccp',
+                      params: a.fridge_id ? { fridgeId: a.fridge_id } : {},
+                    });
+                  }}
+                >
                   <Text style={{ fontSize: 12 }}>{a.isFreezer ? '🧊' : '❄️'}</Text>
                   <Text style={s.alertTempName} numberOfLines={1}>{a.fridge}</Text>
                   <Text style={[s.alertTempVal, { color: C.bad }]}>{a.valeur}°C</Text>
-                </View>
+                  <Text style={{ fontSize: 10, color: C.muted, marginLeft: 4 }}>›</Text>
+                </TouchableOpacity>
               ))
             )}
           </View>

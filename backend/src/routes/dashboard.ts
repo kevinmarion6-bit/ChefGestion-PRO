@@ -71,6 +71,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
       if (isNonConforme) {
         tempAlerts.push({
           fridge: fridgeName,
+          fridge_id: log.fridge_id || null,
           valeur: val,
           periode: log.periode,
           isFreezer,
