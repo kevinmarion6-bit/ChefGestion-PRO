@@ -110,11 +110,23 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
     const fridgeCount = (fridges ?? []).length;
     const todayLogs = (todayTemps ?? []).filter(l => l.periode === currentService);
     const fridgesWithTemp = new Set(todayLogs.map(l => l.fridge_id).filter(Boolean));
+    const isComplete = fridgeCount > 0 ? fridgesWithTemp.size >= fridgeCount : todayLogs.length > 0;
+    const hasAtLeastOne = todayLogs.length > 0;
+    
+    // 3 états : 'waiting' (aucun relevé) | 'in_progress' (partiel) | 'complete' (tous faits)
+    let status: 'waiting' | 'in_progress' | 'complete' = 'waiting';
+    if (isComplete) {
+      status = 'complete';
+    } else if (hasAtLeastOne) {
+      status = 'in_progress';
+    }
+
     const tempCheckStatus = {
       currentService,
       totalFridges: fridgeCount,
       completedFridges: fridgesWithTemp.size,
-      isComplete: fridgeCount > 0 ? fridgesWithTemp.size >= fridgeCount : todayLogs.length > 0,
+      isComplete,
+      status,
       missingFridges: (fridges ?? [])
         .filter(f => !fridgesWithTemp.has(f.id))
         .map(f => f.nom),

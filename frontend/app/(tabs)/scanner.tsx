@@ -171,6 +171,7 @@ export default function ScannerScreen() {
         const json = await response.json();
         if (!json.ok) throw new Error(json.error ?? 'Lecture impossible');
         setResult({ type: 'temperature', data: json.data });
+        await refreshDashboard();
       } else if (scanType === 'carte') {
         const data = await Scan.carte(uri);
         setResult({ type: 'carte', data });

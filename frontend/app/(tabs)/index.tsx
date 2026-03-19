@@ -164,13 +164,27 @@ export default function DashboardScreen() {
               </Text>
               <View style={[
                 s.tempCheckBadge,
-                { backgroundColor: tempCheckStatus?.isComplete ? 'rgba(74,222,128,0.15)' : 'rgba(248,113,113,0.15)' }
+                { backgroundColor: 
+                  tempCheckStatus?.status === 'complete' 
+                    ? 'rgba(74,222,128,0.15)' 
+                    : tempCheckStatus?.status === 'in_progress'
+                      ? 'rgba(250,204,21,0.15)'
+                      : 'rgba(248,113,113,0.15)' 
+                }
               ]}>
                 <Text style={{
                   fontSize: 10, fontFamily: 'Cinzel_700Bold', letterSpacing: 1,
-                  color: tempCheckStatus?.isComplete ? C.ok : C.bad
+                  color: tempCheckStatus?.status === 'complete' 
+                    ? C.ok 
+                    : tempCheckStatus?.status === 'in_progress'
+                      ? C.warn
+                      : C.bad
                 }}>
-                  {tempCheckStatus?.isComplete ? '✅ À JOUR' : '⏳ EN ATTENTE'}
+                  {tempCheckStatus?.status === 'complete' 
+                    ? '✅ VALIDÉ' 
+                    : tempCheckStatus?.status === 'in_progress'
+                      ? '🔄 EN COURS'
+                      : '⏳ EN ATTENTE'}
                 </Text>
               </View>
             </View>
@@ -181,7 +195,12 @@ export default function DashboardScreen() {
                 <View style={[s.tempCheckFill, {
                   width: tempCheckStatus?.totalFridges
                     ? `${(tempCheckStatus.completedFridges / tempCheckStatus.totalFridges) * 100}%`
-                    : '0%'
+                    : '0%',
+                  backgroundColor: tempCheckStatus?.status === 'complete' 
+                    ? C.ok 
+                    : tempCheckStatus?.status === 'in_progress'
+                      ? C.warn
+                      : C.bad
                 }]} />
               </View>
               <Text style={s.tempCheckCount}>
