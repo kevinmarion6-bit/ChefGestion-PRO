@@ -151,22 +151,39 @@ JSON strict (sans markdown) :
 {"etablissement":"","plats":[{"categorie":"Entrées|Plats|Desserts|Fromages|Boissons","nom":"","prix_ttc":0}]}`,
 
   recipes: (style: string, cat: string, products: string) =>
-    `Chef expert en cuisine ${style} française.
-Génère 8 idées originales de ${cat} avec ces produits disponibles : ${products}.
-Descriptions très courtes (1 phrase max). Noms concis.
-JSON strict (sans markdown) :
+    `Chef ${style}. Génère 8 ${cat} avec: ${products}.
+IMPORTANT: descriptions de 10 mots MAX. Noms courts.
+Réponds UNIQUEMENT en JSON valide, sans backticks, sans markdown.
 {"recettes":[{"nom":"","description":"","ingredients_principaux":[],"temps_preparation":"","suggestion_prix":0}]}`,
 };
 
-// ─── HELPERS ─────────────────────────────────────────────
-
 export function parseGeminiJSON<T>(raw: string): T | null {
   try {
-    // Cette regex cherche le premier '{' et le dernier '}' pour extraire uniquement le bloc JSON
-    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    // 1. Supprimer les fences markdown ```json ... ```
+    let cleaned = raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+    
+    // 2. Extraire le bloc JSON
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return null;
     
-    const cleaned = jsonMatch[0].trim();
+    cleaned = jsonMatch[0].trim();
+    
+    // 3. Si le JSON est tronqué, tenter de le réparer
+    if (!cleaned.endsWith('}')) {
+      // Fermer les tableaux et objets ouverts
+      const openBrackets = (cleaned.match(/\[/g) || []).length - (cleaned.match(/\]/g) || []).length;
+      const openBraces = (cleaned.match(/\{/g) || []).length - (cleaned.match(/\}/g) || []).length;
+      
+      // Couper au dernier objet complet dans un tableau
+      const lastCompleteObj = cleaned.lastIndexOf('}');
+      if (lastCompleteObj > 0) {
+        cleaned = cleaned.substring(0, lastCompleteObj + 1);
+        // Fermer les crochets/accolades manquants
+        for (let i = 0; i < openBrackets; i++) cleaned += ']';
+        for (let i = 0; i < openBraces; i++) cleaned += '}';
+      }
+    }
+    
     return JSON.parse(cleaned) as T;
   } catch (e) {
     console.error("[Gemini] Erreur de parsing JSON:", e);
