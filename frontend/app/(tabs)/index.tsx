@@ -252,8 +252,8 @@ export default function DashboardScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={s.pushLabel}>🔔  Notifications push</Text>
                 <Text style={s.pushHint}>
-                  Rappel à {tempCheckStatus?.currentService === 'MIDI' ? '14h30' : '22h30'} si oubli
-                </Text>
+  Rappels à {tempCheckStatus?.currentService === 'MIDI' ? '14h30 et 15h30' : '22h30 et 23h30'} si oubli
+</Text>
               </View>
               <Switch
                value={pushEnabled}

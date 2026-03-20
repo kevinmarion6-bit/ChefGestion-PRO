@@ -7,6 +7,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { Scan } from '@/lib/api';
 import { useApp } from '@/lib/context';
 import { getToken } from '@/lib/auth';
+import { useNavigation } from '@react-navigation/native';
 
 const C = {
   blackS: '#0C0C0C', charcoal: '#1A1A1A',
@@ -42,6 +43,7 @@ export default function ScannerScreen() {
   const FRAME_WIDTH = winWidth * 0.85;
 
   const [fridges, setFridges]                   = useState<any[]>([]);
+  const [todayLogs, setTodayLogs]               = useState<any[]>([]);
   const [selectedFridgeId, setSelectedFridgeId] = useState<string | null>(null);
   const [scanType, setScanType]                 = useState<ScanType>('factures');
   const [loading, setLoading]                   = useState(false);
@@ -55,18 +57,56 @@ export default function ScannerScreen() {
   const frameConfig  = getFrameConfig(scanType, FRAME_WIDTH);
   const FRAME_HEIGHT = frameConfig.height;
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const token = await getToken();
-        const res = await fetch('https://chefgestion-pro.onrender.com/api/fridges', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const json = await res.json();
-        if (json.ok) setFridges(json.data ?? []);
-      } catch (e) { console.error('[Frigos]', e); }
-    })();
-  }, []);
+
+async function refreshTodayLogs() {
+  try {
+    const token = await getToken();
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const logsRes = await fetch(
+      `https://chefgestion-pro.onrender.com/api/scan/haccp-logs?year=${year}&month=${month}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    const logsJson = await logsRes.json();
+    if (logsJson.ok) setTodayLogs(logsJson.data ?? []);
+  } catch (e) { console.error('[Logs refresh]', e); }
+}
+
+useEffect(() => {
+  (async () => {
+    try {
+      const token = await getToken();
+      const res = await fetch('https://chefgestion-pro.onrender.com/api/fridges', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      if (json.ok) setFridges(json.data ?? []);
+    } catch (e) { console.error('[Frigos]', e); }
+
+    refreshTodayLogs();
+  })();
+}, []);
+
+const navigation = useNavigation();
+
+useEffect(() => {
+  const unsubscribe = navigation.addListener('focus', () => {
+    refreshTodayLogs();
+  });
+  return unsubscribe;
+}, [navigation]);
+
+function isFridgeDoneForCurrentService(fridgeId: string): boolean {
+  const now = new Date();
+  const h = now.getHours();
+  const periode = (h >= 2 && h < 16) ? 'MIDI' : 'SOIR';
+  const todayStr = now.toISOString().split('T')[0];
+  
+  return todayLogs.some(
+    l => l.fridge_id === fridgeId && l.date === todayStr && l.periode === periode
+  );
+}
 
   async function handleMainPress() {
     if (scanType === 'temperature' && fridges.length > 0 && !selectedFridgeId) {
@@ -172,6 +212,7 @@ export default function ScannerScreen() {
         if (!json.ok) throw new Error(json.error ?? 'Lecture impossible');
         setResult({ type: 'temperature', data: json.data });
         await refreshDashboard();
+        await refreshTodayLogs();
       } else if (scanType === 'carte') {
         const data = await Scan.carte(uri);
         setResult({ type: 'carte', data });
@@ -275,14 +316,30 @@ export default function ScannerScreen() {
             <View style={{ marginBottom: 14 }}>
               <Text style={s.fridgePickerLabel}>📍 ÉQUIPEMENT SCANNÉ</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 2 }}>
-                {fridges.map((f: any) => (
-                  <TouchableOpacity key={f.id}
-                    style={[s.fridgeChip, selectedFridgeId === f.id && s.fridgeChipActive]}
-                    onPress={() => setSelectedFridgeId(selectedFridgeId === f.id ? null : f.id)}>
-                    <Text style={{ fontSize: 18 }}>{f.type === 'negatif' ? '🧊' : '❄️'}</Text>
-                    <Text style={[s.fridgeChipLabel, selectedFridgeId === f.id && { color: '#000' }]}>{f.nom}</Text>
-                  </TouchableOpacity>
-                ))}
+                {fridges.map((f: any) => {
+  const isDone = isFridgeDoneForCurrentService(f.id);
+  return (
+    <TouchableOpacity key={f.id}
+      style={[
+        s.fridgeChip,
+        selectedFridgeId === f.id && s.fridgeChipActive,
+        isDone && { opacity: 0.4, borderColor: '#4ADE80' },
+      ]}
+      onPress={() => setSelectedFridgeId(selectedFridgeId === f.id ? null : f.id)}>
+      <Text style={{ fontSize: 18 }}>{f.emoji || (f.type === 'negatif' ? '🧊' : '❄️')}</Text>
+      <Text style={[
+        s.fridgeChipLabel,
+        selectedFridgeId === f.id && { color: '#000' },
+        isDone && { color: '#4ADE80' },
+      ]}>
+        {f.nom}
+      </Text>
+      {isDone && (
+        <Text style={{ fontSize: 10, color: '#4ADE80', marginTop: 2 }}>✅</Text>
+      )}
+    </TouchableOpacity>
+  );
+})}
               </ScrollView>
               {!selectedFridgeId && (
                 <Text style={s.fridgeHint}>⚠️ Sélectionnez un équipement avant de scanner</Text>

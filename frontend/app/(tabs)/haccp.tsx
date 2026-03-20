@@ -4,10 +4,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useLocalSearchParams } from 'expo-router';
 import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import { getToken } from '../../lib/auth';
 import { Restaurant } from '@/lib/api';
 import { Archives } from '@/lib/api';
 import { Linking } from 'react-native';
+
 
 const API_URL = 'https://chefgestion-pro.onrender.com';
 
@@ -26,9 +28,10 @@ export default function HaccpScreen() {
   const [selectedPeriode, setSelectedPeriode]   = useState('');
   const [selectedFridgeId, setSelectedFridgeId] = useState<string | null>(null);
   const [restaurantName, setRestaurantName]     = useState('');
-  const [archives, setArchives] = useState<any[]>([]);
-  const [archivesLoading, setArchivesLoading] = useState(false);
-  const [showArchives, setShowArchives] = useState(false);
+  const [archives, setArchives]                 = useState<any[]>([]);
+  const [archivesLoading, setArchivesLoading]   = useState(false);
+  const [showArchives, setShowArchives]         = useState(false);
+  const [showAllDays, setShowAllDays]           = useState(false);
 
   const now          = new Date();
   const viewMonthStr = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
@@ -315,9 +318,29 @@ async function generateCurrentArchive() {
   };
 
   // ─── COMPTEUR DE RELEVÉS POUR UN FRIGO ───────────────────
+  // ─── COMPTEUR DE RELEVÉS POUR UN FRIGO ───────────────────
   function getFridgeLogCount(fridgeId: string) {
     return logs.filter(l => l.fridge_id === fridgeId || (l.fridge_nom && fridges.find(f => f.id === fridgeId)?.nom === l.fridge_nom)).length;
   }
+
+  // ─── SEMAINE EN COURS ────────────────────────────────────
+  function getCurrentWeekDays(): number[] {
+    const today = now.getDate();
+    const dayOfWeek = now.getDay();
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = today + mondayOffset;
+    
+    const days: number[] = [];
+    for (let i = 0; i < 7; i++) {
+      const d = monday + i;
+      if (d >= 1 && d <= daysInMonth) {
+        days.push(d);
+      }
+    }
+    return days;
+  }
+
+  const weekDays = getCurrentWeekDays();
 
   // ─── RENDER UNE LIGNE JOUR ───────────────────────────────
   function renderDayRow(day: number) {
@@ -437,10 +460,38 @@ async function generateCurrentArchive() {
           </View>
 
           {/* ─── TABLEAU SCROLLABLE ──────────────────────── */}
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day =>
-              renderDayRow(day)
-            )}
+<ScrollView showsVerticalScrollIndicator={false}>
+  
+  {/* Indicateur semaine en cours */}
+  {!showAllDays && (
+    <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, backgroundColor: 'rgba(212,175,55,0.05)' }}>
+      <Text style={{ fontSize: 12 }}>📅</Text>
+      <Text style={{ color: '#D4AF37', fontSize: 10, fontFamily: 'Cinzel_700Bold', letterSpacing: 1, marginLeft: 6 }}>
+        SEMAINE DU {weekDays[0]} AU {weekDays[weekDays.length - 1]} {MOIS_FR[now.getMonth()].toUpperCase()}
+      </Text>
+    </View>
+  )}
+
+  {/* Jours affichés */}
+  {(showAllDays
+    ? Array.from({ length: daysInMonth }, (_, i) => i + 1)
+    : weekDays
+  ).map(day => renderDayRow(day))}
+
+  {/* Bouton voir plus / voir moins */}
+  <TouchableOpacity
+    style={{
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+      paddingVertical: 14, gap: 8,
+      borderTopWidth: 1, borderTopColor: 'rgba(212,175,55,0.1)',
+      backgroundColor: 'rgba(212,175,55,0.04)',
+    }}
+    onPress={() => setShowAllDays(!showAllDays)}
+  >
+    <Text style={{ color: '#D4AF37', fontSize: 11, fontFamily: 'Cinzel_700Bold', letterSpacing: 1 }}>
+      {showAllDays ? '▲  SEMAINE EN COURS' : `▼  VOIR TOUT LE MOIS (${daysInMonth} jours)`}
+    </Text>
+  </TouchableOpacity>
             {/* ─── SECTION ARCHIVES MENSUELLES ─────────────────── */}
 <View style={{ marginTop: 24 }}>
   <TouchableOpacity
@@ -537,18 +588,38 @@ async function generateCurrentArchive() {
               </View>
  
               <TouchableOpacity
-                style={{
-                  backgroundColor: '#D4AF37', borderRadius: 8,
-                  paddingHorizontal: 14, paddingVertical: 8,
-                }}
-                onPress={() => {
-                  if (a.download_url) {
-                    Linking.openURL(a.download_url);
-                  }
-                }}
-              >
-                <Text style={{ color: '#000', fontSize: 11, fontWeight: 'bold' }}>📥 PDF</Text>
-              </TouchableOpacity>
+  style={{
+    backgroundColor: '#D4AF37', borderRadius: 8,
+    paddingHorizontal: 14, paddingVertical: 8,
+  }}
+  onPress={async () => {
+    if (!a.download_url) return;
+    try {
+      // 1. Télécharger le HTML depuis Supabase
+      const response = await fetch(a.download_url);
+      const html = await response.text();
+
+      // 2. Convertir en PDF sur le téléphone
+      const { uri } = await Print.printToFileAsync({ html });
+
+      // 3. Proposer de partager / sauvegarder / imprimer
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: `Archive HACCP — ${a.month_label}`,
+          UTI: 'com.adobe.pdf',
+        });
+      } else {
+        await Print.printAsync({ html });
+      }
+    } catch (err) {
+      Alert.alert('Erreur', 'Impossible de générer le PDF.');
+      console.error('[Archive PDF]', err);
+    }
+  }}
+>
+  <Text style={{ color: '#000', fontSize: 11, fontWeight: 'bold' }}>📥 PDF</Text>
+</TouchableOpacity>
             </View>
           </View>
         ))

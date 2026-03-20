@@ -407,8 +407,13 @@ router.post('/recipes', requireAuth, async (req: AuthRequest, res: Response) => 
 
     const apiKey = getApiKey();
     const raw = await enqueueGemini(() => callGemini(apiKey, PROMPTS.recipes(style, categorie, productList)));
-    const data = parseGeminiJSON<{ recettes: unknown[] }>(raw);
-    if (!data) { res.status(422).json({ ok: false, error: 'Génération échouée' }); return; }
+console.log('[/scan/recipes] Réponse brute Gemini:', raw?.substring(0, 500));
+const data = parseGeminiJSON<{ recettes: unknown[] }>(raw);
+if (!data) {
+  console.error('[/scan/recipes] Parsing échoué. Réponse complète:', raw);
+  res.status(422).json({ ok: false, error: 'Génération échouée' });
+  return;
+}
     res.json({ ok: true, data: data.recettes });
   } catch (err) {
     console.error('[/scan/recipes]', err);

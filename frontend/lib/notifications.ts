@@ -104,10 +104,11 @@ async function savePushTokenToServer(pushToken: string): Promise<void> {
 // ─── PLANIFIER LES RAPPELS DE TEMPÉRATURE ────────────────
 
 export async function scheduleTemperatureReminders(): Promise<void> {
-  // Annuler les anciens rappels
+  if (!Notifications) return;
+  
   await Notifications.cancelAllScheduledNotificationsAsync();
 
-  // Rappel MIDI → 14h30
+  // Rappel MIDI n°1 → 14h30
   await Notifications.scheduleNotificationAsync({
     content: {
       title: '🌡️ Relevé MIDI en attente',
@@ -122,7 +123,22 @@ export async function scheduleTemperatureReminders(): Promise<void> {
     },
   });
 
-  // Rappel SOIR → 22h30
+  // Rappel MIDI n°2 → 15h30 (dernier rappel)
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: '⚠️ Dernier rappel MIDI !',
+      body: 'Chef, les relevés MIDI ne sont toujours pas complets. Scannez vos frigos maintenant !',
+      sound: 'default',
+      data: { screen: 'haccp' },
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DAILY,
+      hour: 15,
+      minute: 30,
+    },
+  });
+
+  // Rappel SOIR n°1 → 22h30
   await Notifications.scheduleNotificationAsync({
     content: {
       title: '🌡️ Relevé SOIR en attente',
@@ -137,7 +153,22 @@ export async function scheduleTemperatureReminders(): Promise<void> {
     },
   });
 
-  console.log('[Notifs] Rappels température planifiés (14h30 + 22h30)');
+  // Rappel SOIR n°2 → 23h30 (dernier rappel)
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: '⚠️ Dernier rappel SOIR !',
+      body: 'Chef, les relevés SOIR ne sont toujours pas complets. Scannez vos frigos maintenant !',
+      sound: 'default',
+      data: { screen: 'haccp' },
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DAILY,
+      hour: 23,
+      minute: 30,
+    },
+  });
+
+  console.log('[Notifs] Rappels planifiés (14h30, 15h30, 22h30, 23h30)');
 }
 
 // ─── ANNULER LES RAPPELS ────────────────────────────────
