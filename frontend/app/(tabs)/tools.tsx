@@ -5,8 +5,9 @@ import * as Print from 'expo-print';
 import { Colors, Spacing, Radius } from '@/constants/Theme';
 import { Btn } from '@/components/UI';
 import { useApp } from '@/lib/context';
-import { Scan, Restaurant } from '@/lib/api';
+import { Scan, Restaurant, Fiches } from '@/lib/api';
 import { Image } from 'react-native';
+
 // ─── ACCORDION ───────────────────────────────────────────
 function Accordion({ icon, title, children }: { icon: string; title: string; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -127,7 +128,7 @@ React.useEffect(() => {
     const portions = parseFloat(fPortions) || 1;
     const pvttc = parseFloat(fPV) || 0;
     const perte = parseFloat(fPerte) || 2;
-    const total = ficheIngs.reduce((s, i) => s + (parseFloat(i.p) || 0) * (parseFloat(i.q) || 0), 0);
+    const total = ficheIngs.reduce((s, i) => s + (parseFloat((i.p || '0').replace(',', '.')) || 0) * (parseFloat((i.q || '0').replace(',', '.')) || 0), 0);
     const pp = total / portions;
     const ppav = pp * (1 + perte / 100);
     const pvht = pvttc / 1.1;
@@ -146,8 +147,8 @@ React.useEffect(() => {
     const year = new Date().getFullYear();
 
     const rows = ficheIngs.map((i, idx) => {
-      const prix = parseFloat(i.p || '0');
-      const qte = parseFloat(i.q || '0');
+      const prix = parseFloat((i.p || '0').replace(',', '.'));
+      const qte = parseFloat((i.q || '0').replace(',', '.'));
       const total = prix * qte;
       return `<tr class="${idx % 2 === 0 ? 'even' : 'odd'}">
         <td class="td-nom">${i.d || '—'}</td>
@@ -188,17 +189,17 @@ React.useEffect(() => {
     /* ─── EN-TÊTE ─────────────────────────── */
     .header {
       background: linear-gradient(135deg, #0C0C0C 0%, #1A1A1A 100%);
-      padding: 28px 40px;
+      padding: 20px 40px;
       display: flex;
       flex-direction: row;
       align-items: center;
-      gap: 18px;
+      gap: 24px;
     }
 
     .header-logo {
-      width: 58px;
-      height: 58px;
-      border-radius: 12px;
+      width: 76px;
+      height: 76px;
+      border-radius: 14px;
       border: 2px solid #D4AF37;
     }
 
@@ -208,31 +209,36 @@ React.useEffect(() => {
 
     .header-brand {
       font-family: 'Playfair Display', Georgia, serif;
-      font-size: 10px;
-      letter-spacing: 4px;
+      font-size: 14px;
+      letter-spacing: 5px;
       text-transform: uppercase;
       color: #D4AF37;
-      margin-bottom: 2px;
+      margin-bottom: 4px;
     }
 
     .header-restaurant {
       font-family: 'Playfair Display', Georgia, serif;
-      font-size: 18px;
+      font-size: 24px;
       color: #F5F5DC;
       font-weight: 600;
       letter-spacing: 1px;
     }
 
     .header-chef {
-      font-size: 11px;
-      color: #8A7A60;
-      margin-top: 3px;
-      font-style: italic;
+      font-size: 14px;
+      color: #F5F5DC;
+      margin-top: 5px;
+    }
+
+    .header-chef-title {
+      color: #D4AF37;
+      font-weight: 600;
+      font-family: 'Playfair Display', Georgia, serif;
     }
 
     .header-date {
-      font-size: 10px;
-      color: #6B6050;
+      font-size: 12px;
+      color: #8A7A60;
       text-align: right;
     }
 
@@ -244,7 +250,7 @@ React.useEffect(() => {
 
     /* ─── TITRE FICHE ─────────────────────── */
     .fiche-title-section {
-      padding: 24px 40px 0;
+      padding: 14px 40px 0;
       text-align: center;
     }
 
@@ -276,14 +282,14 @@ React.useEffect(() => {
     .kpi-grid {
       display: grid;
       grid-template-columns: 1fr 1fr 1fr 1fr;
-      gap: 12px;
-      padding: 20px 40px;
+      gap: 8px;
+      padding: 14px 40px;
     }
 
     .kpi-card {
       border: 1px solid #E8E0D0;
-      border-radius: 8px;
-      padding: 14px 10px;
+      border-radius: 6px;
+      padding: 8px 6px;
       text-align: center;
       background: #FAFAF7;
       position: relative;
@@ -323,7 +329,7 @@ React.useEffect(() => {
     /* ─── SECTION TITLE ────────────────────── */
     .section {
       padding: 0 40px;
-      margin-bottom: 20px;
+      margin-bottom: 12px;
     }
 
     .section-header {
@@ -379,22 +385,22 @@ React.useEffect(() => {
     }
 
     .td-nom { 
-      padding: 9px 12px; 
+      padding: 5px 10px; 
       font-weight: 400;
-      font-size: 12px;
+      font-size: 11px;
     }
 
     .td-center { 
-      padding: 9px 12px; 
+      padding: 5px 10px; 
       text-align: center; 
-      font-size: 12px;
+      font-size: 11px;
       color: #555;
     }
 
     .td-right { 
-      padding: 9px 12px; 
+      padding: 5px 10px; 
       text-align: right; 
-      font-size: 12px;
+      font-size: 11px;
       font-family: 'Lato', monospace;
     }
 
@@ -423,16 +429,16 @@ React.useEffect(() => {
       background: #FAFAF7;
       border: 1px solid #E8E0D0;
       border-radius: 8px;
-      padding: 20px;
+      padding: 14px;
     }
 
     .step {
       display: flex;
       flex-direction: row;
       align-items: flex-start;
-      gap: 12px;
-      margin-bottom: 10px;
-      line-height: 1.6;
+      gap: 10px;
+      margin-bottom: 6px;
+      line-height: 1.4;
     }
 
     .step:last-child { margin-bottom: 0; }
@@ -462,9 +468,9 @@ React.useEffect(() => {
 
     /* ─── PIED DE PAGE ─────────────────────── */
     .footer {
-      margin-top: 30px;
-      border-top: 2px solid #D4AF37;
-      padding: 16px 40px;
+      margin-top: 16px;
+      background: linear-gradient(135deg, #0C0C0C 0%, #1A1A1A 100%);
+      padding: 18px 40px;
       display: flex;
       flex-direction: row;
       justify-content: space-between;
@@ -472,21 +478,21 @@ React.useEffect(() => {
     }
 
     .footer-left {
-      font-size: 9px;
+      font-size: 10px;
       color: #8A7A60;
       font-style: italic;
     }
 
     .footer-center {
       font-family: 'Playfair Display', Georgia, serif;
-      font-size: 8px;
+      font-size: 10px;
       letter-spacing: 3px;
       color: #D4AF37;
       text-transform: uppercase;
     }
 
     .footer-right {
-      font-size: 9px;
+      font-size: 10px;
       color: #8A7A60;
     }
   </style>
@@ -499,7 +505,7 @@ React.useEffect(() => {
     <div class="header-info">
       <div class="header-brand">✦ ChefGestion Pro ✦</div>
       ${restName ? `<div class="header-restaurant">🍽️ ${restName}</div>` : ''}
-      <div class="header-chef">👨‍🍳 ${chefName}</div>
+      <div class="header-chef">👨‍🍳 &nbsp; <span class="header-chef-title">Chef</span> &nbsp; ${chefName}</div>
     </div>
     <div class="header-date">📅 ${today}</div>
   </div>
@@ -574,7 +580,7 @@ React.useEffect(() => {
       <div class="section-line"></div>
     </div>
 
-    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;">
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
       <div class="kpi-card">
         <div class="kpi-label">PV HT</div>
         <div class="kpi-value">${fc.pvht.toFixed(2)}€</div>
@@ -614,6 +620,28 @@ React.useEffect(() => {
 </html>`;
 
     await Print.printAsync({ html });
+  }
+
+  async function saveFiche() {
+    if (!fNom.trim()) {
+      Alert.alert('Erreur', 'Donnez un nom à votre plat avant de sauvegarder.');
+      return;
+    }
+    try {
+      const fc = ficheCalc();
+      await Fiches.save({
+        nom: fNom.trim(),
+        portions: parseInt(fPortions) || 4,
+        pv_ttc: parseFloat(fPV) || 0,
+        perte: parseFloat(fPerte) || 2,
+        progression: fProg,
+        ingredients: ficheIngs,
+        total_ht: fc.total,
+      });
+      Alert.alert('✅ Fiche sauvegardée !', 'Retrouvez-la dans Plus → Répertoire de Fiches Techniques');
+    } catch (err) {
+      Alert.alert('Erreur', 'Impossible de sauvegarder la fiche.');
+    }
   }
 
   // ─── GENERATE RECIPES ─────
@@ -694,8 +722,8 @@ React.useEffect(() => {
           {ficheIngs.map((ing, i) => (
             <View key={i} style={styles.ingRow}>
               <TextInput style={[styles.calcInput, { flex: 2 }]} value={ing.d} onChangeText={v => { const a = [...ficheIngs]; a[i] = { ...a[i], d: v }; setFicheIngs(a); }} placeholder="Denrée" placeholderTextColor={Colors.muted} />
-              <TextInput style={[styles.calcInput, { width: 55, textAlign: 'center' }]} value={ing.p} onChangeText={v => { const a = [...ficheIngs]; a[i] = { ...a[i], p: v }; setFicheIngs(a); }} placeholder="PU HT" placeholderTextColor={Colors.muted} keyboardType="decimal-pad" />
-              <TextInput style={[styles.calcInput, { width: 55, textAlign: 'center' }]} value={ing.q} onChangeText={v => { const a = [...ficheIngs]; a[i] = { ...a[i], q: v }; setFicheIngs(a); }} placeholder="Qté" placeholderTextColor={Colors.muted} keyboardType="decimal-pad" />
+              <TextInput style={[styles.calcInput, { width: 55, textAlign: 'center' }]} value={ing.p} onChangeText={v => { const a = [...ficheIngs]; a[i] = { ...a[i], p: v.replace(',', '.') }; setFicheIngs(a); }} placeholder="PU HT" placeholderTextColor={Colors.muted} keyboardType="decimal-pad" />
+              <TextInput style={[styles.calcInput, { width: 55, textAlign: 'center' }]} value={ing.q} onChangeText={v => { const a = [...ficheIngs]; a[i] = { ...a[i], q: v.replace(',', '.') }; setFicheIngs(a); }} placeholder="Qté" placeholderTextColor={Colors.muted} keyboardType="decimal-pad" />
               <TouchableOpacity onPress={() => setFicheIngs(ficheIngs.filter((_, j) => j !== i))}><Text style={{ color: Colors.muted, fontSize: 20, paddingHorizontal: 6 }}>×</Text></TouchableOpacity>
             </View>
           ))}
@@ -719,6 +747,11 @@ React.useEffect(() => {
 
           <View style={{ height: 12 }} />
           <Btn label="🖨️  Imprimer la Fiche" onPress={printFiche} />
+          <View style={{ height: 8 }} />
+          <Btn label="💾  Enregistrer la Fiche" onPress={saveFiche} variant="outline" />
+          <Text style={{ color: Colors.muted, fontSize: 10, fontStyle: 'italic', textAlign: 'center', marginTop: 6 }}>
+            Retrouvez vos fiches dans Plus → Répertoire de Fiches Techniques
+          </Text>
         </Accordion>
 
         {/* 4. Recettes IA */}
@@ -760,27 +793,13 @@ React.useEffect(() => {
   </View>
 ))}
 
-{recipes.length > recShowCount && (
+{recipes.length > 3 && (
   <TouchableOpacity
-    style={{
-      borderWidth: 1,
-      borderColor: 'rgba(212,175,55,0.3)',
-      borderRadius: 8,
-      paddingVertical: 12,
-      alignItems: 'center',
-      marginTop: 12,
-      backgroundColor: 'rgba(212,175,55,0.06)',
-    }}
-    onPress={() => setRecShowCount(prev => Math.min(prev + 3, recipes.length))}
+    style={{ alignItems: 'center', paddingVertical: 12, marginTop: 8 }}
+    onPress={() => setRecShowCount(recShowCount >= recipes.length ? 3 : recipes.length)}
   >
-    <Text style={{
-      color: Colors.gold,
-      fontFamily: 'Cinzel_400Regular',
-      fontSize: 10,
-      letterSpacing: 1.5,
-      textTransform: 'uppercase',
-    }}>
-      ✨ Voir Plus ({recipes.length - recShowCount} restantes)
+    <Text style={{ color: Colors.gold, fontSize: 11, fontFamily: 'Cinzel_400Regular', letterSpacing: 1 }}>
+      {recShowCount >= recipes.length ? '▲  RÉDUIRE' : `▼  VOIR TOUT (${recipes.length} recettes)`}
     </Text>
   </TouchableOpacity>
 )}

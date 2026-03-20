@@ -6,17 +6,18 @@ import helmet from 'helmet';
 import os from 'os';
 
 // Routes
-import authRoutes      from './routes/auth';
-import scanRoutes      from './routes/scan';
-import invoicesRoutes  from './routes/invoices';
-import suppliersRoutes from './routes/suppliers';
-import haccpRoutes     from './routes/haccp';
-import dashboardRoutes from './routes/dashboard';
-import fridgesRouter   from './routes/fridges';
+import authRoutes       from './routes/auth';
+import scanRoutes       from './routes/scan';
+import invoicesRoutes   from './routes/invoices';
+import suppliersRoutes  from './routes/suppliers';
+import haccpRoutes      from './routes/haccp';
+import dashboardRoutes  from './routes/dashboard';
+import fridgesRouter    from './routes/fridges';
 import restaurantRouter from './routes/restaurant';
-import { supabase }    from './services/supabase';
+import { supabase }     from './services/supabase';
 import settingsRouter   from './routes/settings';
 import archivesRouter   from './routes/archives';
+import fichesRouter     from './routes/fiches';
 import { runArchiveCron, runIncompleteMonthNotification } from './services/archiveGenerator';
 
 const app = express();
@@ -30,17 +31,17 @@ app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
 // ─── ROUTES ──────────────────────────────────────────────
-app.use('/api/auth',      authRoutes);
-app.use('/api/scan',      scanRoutes);
-app.use('/api/invoices',  invoicesRoutes);
-app.use('/api/suppliers', suppliersRoutes);
-app.use('/api/haccp',     haccpRoutes);
-app.use('/api/dashboard', dashboardRoutes);
-app.use('/api/fridges', fridgesRouter);
+app.use('/api/auth',       authRoutes);
+app.use('/api/scan',       scanRoutes);
+app.use('/api/invoices',   invoicesRoutes);
+app.use('/api/suppliers',  suppliersRoutes);
+app.use('/api/haccp',      haccpRoutes);
+app.use('/api/dashboard',  dashboardRoutes);
+app.use('/api/fridges',    fridgesRouter);
 app.use('/api/restaurant', restaurantRouter);
-app.use('/api/settings',  settingsRouter);
-app.use('/api/archives',  archivesRouter);
-
+app.use('/api/settings',   settingsRouter);
+app.use('/api/archives',   archivesRouter);
+app.use('/api/fiches',     fichesRouter);
 
 // ─── HEALTH CHECK ────────────────────────────────────────
 app.get('/api/health', async (_req, res) => {

@@ -6,10 +6,107 @@ import { router } from 'expo-router';
 import { Colors, Spacing, Radius } from '@/constants/Theme';
 import { Card, Btn, ListItem, Empty, SectionTitle } from '@/components/UI';
 import { useApp } from '@/lib/context';
-import { Auth, Dashboard, Restaurant } from '@/lib/api';
+import { Auth, Dashboard, Restaurant, Fiches } from '@/lib/api';
 import { getToken } from '@/lib/auth';
 
-type SubPage = null | 'suppliers' | 'haccp' | 'settings' | 'restaurant';
+type SubPage = null | 'suppliers' | 'haccp' | 'settings' | 'restaurant' | 'fiches';
+
+// ═════════════════════════════════════════════════════════════
+// ─── FICHES TECHNIQUES ──────────────────────────────────────
+// ═════════════════════════════════════════════════════════════
+
+function FichesPage({ goBack }: { goBack: () => void }) {
+  const [fiches, setFiches] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { loadFiches(); }, []);
+
+  async function loadFiches() {
+    setLoading(true);
+    try {
+      const data = await Fiches.list();
+      setFiches(data ?? []);
+    } catch (err) {
+      console.error('[Fiches]', err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleDelete(id: string, nom: string) {
+    Alert.alert('Supprimer', `Supprimer la fiche "${nom}" ?`, [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Supprimer', style: 'destructive', onPress: async () => {
+          try {
+            await Fiches.remove(id);
+            loadFiches();
+          } catch {
+            Alert.alert('Erreur', 'Impossible de supprimer.');
+          }
+        }
+      }
+    ]);
+  }
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.headerSub2}>
+        <TouchableOpacity onPress={goBack} style={styles.backBtn}><Text style={styles.backArrow}>‹</Text></TouchableOpacity>
+        <View><Text style={styles.headerTitle}>Répertoire de Fiches</Text><Text style={styles.subTxt}>Vos recettes sauvegardées</Text></View>
+      </View>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {loading ? (
+          <ActivityIndicator color={Colors.gold} style={{ marginTop: 30 }} />
+        ) : fiches.length === 0 ? (
+          <Empty icon="📋" text={"Aucune fiche sauvegardée\nAllez dans Outils → Fiche Technique → Enregistrer"} />
+        ) : (
+          fiches.map((f: any) => {
+            const ings = typeof f.ingredients === 'string' ? JSON.parse(f.ingredients) : (f.ingredients || []);
+            const date = new Date(f.updated_at).toLocaleDateString('fr-FR');
+            return (
+              <Card key={f.id} style={{ marginBottom: 10 }}>
+                <View style={{ padding: 14 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: Colors.cream, fontSize: 15, fontFamily: 'Cinzel_400Regular' }}>{f.nom}</Text>
+                      <Text style={{ color: Colors.muted, fontSize: 11, marginTop: 4 }}>
+                        🍽️ {f.portions} portions · 💰 {parseFloat(f.total_ht || 0).toFixed(2)}€ HT · 📅 {date}
+                      </Text>
+                    </View>
+                    <TouchableOpacity onPress={() => handleDelete(f.id, f.nom)} style={{ padding: 6 }}>
+                      <Text style={{ fontSize: 16 }}>🗑️</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {ings.length > 0 && (
+                    <View style={{ marginTop: 10, backgroundColor: 'rgba(212,175,55,0.05)', borderRadius: 8, padding: 10 }}>
+                      <Text style={{ color: Colors.gold, fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6 }}>Ingrédients</Text>
+                      {ings.filter((ig: any) => ig.d).map((ig: any, idx: number) => (
+                        <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
+                          <Text style={{ color: Colors.cream, fontSize: 12 }}>{ig.d}</Text>
+                          <Text style={{ color: Colors.muted, fontSize: 12 }}>{ig.q || '0'} {ig.u} · {ig.p || '0'}€</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
+                  {f.progression ? (
+                    <View style={{ marginTop: 8 }}>
+                      <Text style={{ color: Colors.muted, fontSize: 10, fontStyle: 'italic', lineHeight: 16 }} numberOfLines={3}>
+                        👨‍🍳 {f.progression}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              </Card>
+            );
+          })
+        )}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
 
 export default function MoreScreen() {
   const [sub, setSub] = useState<SubPage>(null);
@@ -26,6 +123,7 @@ export default function MoreScreen() {
   if (sub === 'haccp')      return <HaccpPage goBack={goBack} state={state} addHaccpPhoto={addHaccpPhoto} />;
   if (sub === 'settings')   return <SettingsPage goBack={goBack} clearAllData={clearAllData} />;
   if (sub === 'restaurant') return <RestaurantPage goBack={goBack} />;
+  if (sub === 'fiches') return <FichesPage goBack={goBack} />;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -48,6 +146,7 @@ export default function MoreScreen() {
           <ListItem icon="🌡️" title="Traçabilité HACCP" subtitle="Étiquettes & relevés températures" onPress={() => goSub('haccp')} />
           <ListItem icon="⚙️" title="Paramètres" subtitle="Compte & données" onPress={() => goSub('settings')} />
           <ListItem icon="🍽️" title="Restaurant" subtitle="Session collaborative & équipe" onPress={() => goSub('restaurant')} />
+          <ListItem icon="📋" title="Répertoire de Fiches Techniques" subtitle="Vos recettes sauvegardées" onPress={() => goSub('fiches')} />
         </Card>
 
         <SectionTitle>Mon compte</SectionTitle>

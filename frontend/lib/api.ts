@@ -480,6 +480,33 @@ export const Settings = {
   },
 };
 
+// ─── FICHES TECHNIQUES ───────────────────────────────────
+
+export const Fiches = {
+  async list() {
+    return apiFetch<any[]>('/fiches');
+  },
+
+  async save(fiche: {
+    nom: string;
+    portions: number;
+    pv_ttc: number;
+    perte: number;
+    progression: string;
+    ingredients: any[];
+    total_ht: number;
+  }) {
+    return apiFetch<any>('/fiches', {
+      method: 'POST',
+      body: JSON.stringify(fiche),
+    });
+  },
+
+  async remove(id: string) {
+    return apiFetch<any>(`/fiches/${id}`, { method: 'DELETE' });
+  },
+};
+
 // ─── HELPERS ─────────────────────────────────────────────
 
 async function uriToFormData(uri: string, fieldName: string): Promise<FormData> {
