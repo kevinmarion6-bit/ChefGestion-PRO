@@ -68,7 +68,7 @@ export async function callGemini(
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [{ parts }],
-            generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
+            generationConfig: { temperature: 0.1, maxOutputTokens: 8192 },
           }),
         }
       );
@@ -151,40 +151,49 @@ JSON strict (sans markdown) :
 {"etablissement":"","plats":[{"categorie":"Entrées|Plats|Desserts|Fromages|Boissons","nom":"","prix_ttc":0}]}`,
 
   recipes: (style: string, cat: string, products: string) =>
-    `Chef ${style}. Génère 8 ${cat} avec: ${products}.
-IMPORTANT: descriptions de 10 mots MAX. Noms courts.
-Réponds UNIQUEMENT en JSON valide, sans backticks, sans markdown.
+    `Génère 8 ${cat} style ${style} avec: ${products}.
+RÈGLES STRICTES:
+- "nom": 6 mots max
+- "description": 8 mots max
+- "ingredients_principaux": 3 items max, noms courts
+- "temps_preparation": format "XX min"
+- "suggestion_prix": nombre entier
+AUCUN texte hors JSON. AUCUN backtick. JSON uniquement:
 {"recettes":[{"nom":"","description":"","ingredients_principaux":[],"temps_preparation":"","suggestion_prix":0}]}`,
 };
 
 export function parseGeminiJSON<T>(raw: string): T | null {
   try {
-    // 1. Supprimer les fences markdown ```json ... ```
+    // 1. Supprimer les fences markdown
     let cleaned = raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
     
     // 2. Extraire le bloc JSON
     const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return null;
-    
     cleaned = jsonMatch[0].trim();
     
-    // 3. Si le JSON est tronqué, tenter de le réparer
-    if (!cleaned.endsWith('}')) {
-      // Fermer les tableaux et objets ouverts
-      const openBrackets = (cleaned.match(/\[/g) || []).length - (cleaned.match(/\]/g) || []).length;
-      const openBraces = (cleaned.match(/\{/g) || []).length - (cleaned.match(/\}/g) || []).length;
+    // 3. Tenter le parse direct
+    try { return JSON.parse(cleaned) as T; } catch {}
+    
+    // 4. JSON tronqué — couper au dernier objet complet du tableau
+    // Trouver la dernière séquence }] ou },{ qui indique un objet fini
+    const lastGoodEnd = Math.max(
+      cleaned.lastIndexOf('},'),
+      cleaned.lastIndexOf('}]')
+    );
+    
+    if (lastGoodEnd > 0) {
+      let repaired = cleaned.substring(0, lastGoodEnd + 1);
+      // Compter et fermer les crochets/accolades manquants
+      const openB = (repaired.match(/\[/g) || []).length - (repaired.match(/\]/g) || []).length;
+      const openC = (repaired.match(/\{/g) || []).length - (repaired.match(/\}/g) || []).length;
+      for (let i = 0; i < openB; i++) repaired += ']';
+      for (let i = 0; i < openC; i++) repaired += '}';
       
-      // Couper au dernier objet complet dans un tableau
-      const lastCompleteObj = cleaned.lastIndexOf('}');
-      if (lastCompleteObj > 0) {
-        cleaned = cleaned.substring(0, lastCompleteObj + 1);
-        // Fermer les crochets/accolades manquants
-        for (let i = 0; i < openBrackets; i++) cleaned += ']';
-        for (let i = 0; i < openBraces; i++) cleaned += '}';
-      }
+      try { return JSON.parse(repaired) as T; } catch {}
     }
     
-    return JSON.parse(cleaned) as T;
+    return null;
   } catch (e) {
     console.error("[Gemini] Erreur de parsing JSON:", e);
     return null;
