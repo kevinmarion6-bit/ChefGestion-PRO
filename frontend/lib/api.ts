@@ -495,6 +495,7 @@ export const Fiches = {
     progression: string;
     ingredients: any[];
     total_ht: number;
+    emoji?: string;
   }) {
     return apiFetch<any>('/fiches', {
       method: 'POST',

@@ -2,12 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Image, StyleSheet, Alert, ActivityIndicator, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
+import * as Print from 'expo-print';
 import { router } from 'expo-router';
 import { Colors, Spacing, Radius } from '@/constants/Theme';
 import { Card, Btn, ListItem, Empty, SectionTitle } from '@/components/UI';
 import { useApp } from '@/lib/context';
 import { Auth, Dashboard, Restaurant, Fiches } from '@/lib/api';
 import { getToken } from '@/lib/auth';
+
+declare global {
+  var __editFiche: any;
+}
 
 type SubPage = null | 'suppliers' | 'haccp' | 'settings' | 'restaurant' | 'fiches';
 
@@ -18,6 +23,7 @@ type SubPage = null | 'suppliers' | 'haccp' | 'settings' | 'restaurant' | 'fiche
 function FichesPage({ goBack }: { goBack: () => void }) {
   const [fiches, setFiches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => { loadFiches(); }, []);
 
@@ -40,6 +46,7 @@ function FichesPage({ goBack }: { goBack: () => void }) {
         text: 'Supprimer', style: 'destructive', onPress: async () => {
           try {
             await Fiches.remove(id);
+            setExpandedId(null);
             loadFiches();
           } catch {
             Alert.alert('Erreur', 'Impossible de supprimer.');
@@ -47,6 +54,164 @@ function FichesPage({ goBack }: { goBack: () => void }) {
         }
       }
     ]);
+  }
+
+  async function handlePrint(fiche: any) {
+    const ings = typeof fiche.ingredients === 'string' ? JSON.parse(fiche.ingredients) : (fiche.ingredients || []);
+    const portions = fiche.portions || 4;
+    const total = parseFloat(fiche.total_ht || 0);
+    const pvttc = parseFloat(fiche.pv_ttc || 0);
+    const perte = parseFloat(fiche.perte || 2);
+    const pp = total / portions;
+    const ppav = pp * (1 + perte / 100);
+    const pvht = pvttc / 1.1;
+    const mb = pvht - ppav;
+    const tm = pvht > 0 ? (mb / pvht) * 100 : 0;
+
+    const logoUrl = 'https://osnckjlgqqawcgduideb.supabase.co/storage/v1/object/public/assets/logo.png';
+    const today = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+    const year = new Date().getFullYear();
+
+    let restName = '';
+    let chefName = 'Le Chef';
+    try {
+      const r = await Restaurant.get();
+      if (r?.nom) restName = r.nom;
+    } catch {}
+    try {
+      const me = await Auth.me();
+      if (me?.name) chefName = me.name;
+    } catch {}
+
+    const rows = ings.map((i: any, idx: number) => {
+      const prix = parseFloat((i.p || '0').replace(',', '.'));
+      const qte = parseFloat((i.q || '0').replace(',', '.'));
+      const t = prix * qte;
+      return `<tr style="background:${idx % 2 === 0 ? '#FFF' : '#FAFAF7'}">
+        <td style="padding:5px 10px;font-size:11px;">${i.d || '—'}</td>
+        <td style="padding:5px 10px;text-align:center;font-size:11px;color:#555;">${i.u}</td>
+        <td style="padding:5px 10px;text-align:right;font-size:11px;">${prix.toFixed(3)} €</td>
+        <td style="padding:5px 10px;text-align:center;font-size:11px;">${qte.toFixed(3)}</td>
+        <td style="padding:5px 10px;text-align:right;font-size:11px;color:#A07D1C;font-weight:700;">${t.toFixed(3)} €</td>
+      </tr>`;
+    }).join('');
+
+    const progression = (fiche.progression || '—').split('\n').filter((l: string) => l.trim()).map((line: string, i: number) =>
+      `<div style="display:flex;gap:10px;margin-bottom:6px;"><span style="background:#D4AF37;color:#FFF;font-size:10px;font-weight:700;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${i + 1}</span><span style="font-size:12px;color:#333;line-height:1.7;">${line.trim()}</span></div>`
+    ).join('');
+
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+      <style>
+        @page { margin: 0; size: A4; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: Helvetica, Arial, sans-serif; color: #2C2C2C; height: 100%; display: flex; flex-direction: column; }
+        html { height: 100%; }
+        .content-wrap { flex: 1; }
+        .header { background: linear-gradient(135deg, #0C0C0C, #1A1A1A); padding: 20px 40px; display: flex; align-items: center; gap: 24px; }
+        .header img { width: 76px; height: 76px; border-radius: 14px; border: 2px solid #D4AF37; }
+        .header-info { flex: 1; }
+        .gold-bar { height: 3px; background: linear-gradient(90deg, #A07D1C, #D4AF37, #EAD06A, #D4AF37, #A07D1C); }
+        table { width: 100%; border-collapse: collapse; border: 1px solid #E8E0D0; border-radius: 8px; overflow: hidden; }
+        thead th { background: linear-gradient(135deg, #111, #1A1A1A); color: #D4AF37; padding: 8px 10px; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; }
+        .kpi-box { border: 1px solid #E8E0D0; border-radius: 6px; padding: 8px 6px; text-align: center; background: #FAFAF7; border-top: 3px solid #D4AF37; }
+        .kpi-label { font-size: 7px; letter-spacing: 2px; color: #8A7A60; text-transform: uppercase; margin-bottom: 4px; }
+        .kpi-val { font-size: 20px; color: #A07D1C; font-weight: 700; }
+        .section-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .section-title { font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #1A1A1A; font-weight: 600; }
+        .section-line { flex: 1; height: 1px; background: linear-gradient(90deg, #D4AF37, transparent); }
+        .footer { margin-top: auto; background: linear-gradient(135deg, #0C0C0C, #1A1A1A); padding: 18px 40px; display: flex; justify-content: space-between; }
+      </style>
+    </head><body>
+      <div class="content-wrap">
+        <div class="header">
+          <img src="${logoUrl}" />
+          <div class="header-info">
+            <div style="font-size:14px;letter-spacing:5px;color:#D4AF37;text-transform:uppercase;">✦ ChefGestion Pro ✦</div>
+            ${restName ? `<div style="font-size:24px;color:#F5F5DC;font-weight:600;">🍽️ ${restName}</div>` : ''}
+            <div style="font-size:14px;color:#F5F5DC;margin-top:5px;">👨‍🍳 &nbsp; <span style="color:#D4AF37;font-weight:600;">Chef</span> &nbsp; ${chefName}</div>
+          </div>
+          <div style="font-size:15px;color:#8A7A60;text-align:right;">📅 ${today}</div>
+        </div>
+        <div class="gold-bar"></div>
+
+        <div style="text-align:center;padding:14px 40px 0;">
+          <div style="border:2px solid #D4AF37;border-radius:8px;padding:10px 20px;display:inline-block;">
+            <div style="font-size:8px;letter-spacing:4px;color:#A07D1C;text-transform:uppercase;margin-bottom:6px;">📋 Fiche Technique ${year}</div>
+            <div style="font-size:26px;color:#1A1A1A;font-weight:700;">${fiche.emoji || ''} ${fiche.nom}</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;padding:14px 40px;">
+          <div class="kpi-box"><div class="kpi-label">Nb Portions</div><div class="kpi-val">${portions}</div></div>
+          <div class="kpi-box"><div class="kpi-label">Coût Total HT</div><div class="kpi-val">${total.toFixed(2)}€</div></div>
+          <div class="kpi-box"><div class="kpi-label">Prix / Portion</div><div class="kpi-val">${pp.toFixed(2)}€</div></div>
+          <div class="kpi-box"><div class="kpi-label">Taux Marge</div><div class="kpi-val">${tm.toFixed(1)}%</div></div>
+        </div>
+
+        <div style="padding:0 40px;margin-bottom:12px;">
+          <div class="section-head"><span>🥘</span><span class="section-title">Ingrédients & Valorisation</span><div class="section-line"></div></div>
+          <table><thead><tr><th>Denrée</th><th style="text-align:center;">Unité</th><th style="text-align:right;">Prix Unit. HT</th><th style="text-align:center;">Quantité</th><th style="text-align:right;">PR HT</th></tr></thead>
+          <tbody>${rows}
+            <tr style="background:rgba(212,175,55,0.08);border-top:2px solid #D4AF37;">
+              <td colspan="4" style="padding:10px;text-align:right;font-weight:700;font-size:13px;">TOTAL COÛT MATIÈRE HT</td>
+              <td style="padding:10px;text-align:right;color:#A07D1C;font-weight:700;font-size:15px;">${total.toFixed(2)} €</td>
+            </tr>
+          </tbody></table>
+        </div>
+
+        <div style="padding:0 40px;margin-bottom:12px;">
+          <div class="section-head"><span>💶</span><span class="section-title">Synthèse Financière</span><div class="section-line"></div></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+            <div class="kpi-box"><div class="kpi-label">PV HT</div><div class="kpi-val">${pvht.toFixed(2)}€</div></div>
+            <div class="kpi-box"><div class="kpi-label">Marge Brute</div><div class="kpi-val">${mb.toFixed(2)}€</div></div>
+            <div class="kpi-box"><div class="kpi-label">Prix Portion Avec Perte</div><div class="kpi-val">${ppav.toFixed(2)}€</div></div>
+          </div>
+        </div>
+
+        <div style="padding:0 40px;margin-bottom:12px;">
+          <div class="section-head"><span>👨‍🍳</span><span class="section-title">Progression de la Recette</span><div class="section-line"></div></div>
+          <div style="background:#FAFAF7;border:1px solid #E8E0D0;border-radius:8px;padding:14px;">
+            ${progression}
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <span style="font-size:10px;color:#8A7A60;font-style:italic;">📄 Document généré automatiquement</span>
+        <span style="font-size:10px;letter-spacing:3px;color:#D4AF37;text-transform:uppercase;">✦ ChefGestion Pro ✦</span>
+        <span style="font-size:10px;color:#8A7A60;">© ${year} — Tous droits réservés</span>
+      </div>
+      <script>(function(){var b=document.body,p=1122;if(b.scrollHeight>p){var s=p/b.scrollHeight;if(s<0.7)s=0.7;b.style.transform='scale('+s+')';b.style.transformOrigin='top left';b.style.width=(100/s)+'%';}})()</script>
+    </body></html>`;
+
+    try {
+      await Print.printAsync({ html });
+    } catch {
+      Alert.alert('Erreur', "Impossible d'exporter en PDF.");
+    }
+  }
+
+  function handleEdit(fiche: any) {
+    // Naviguer vers Outils avec les données pré-remplies
+    Alert.alert(
+      '✏️ Modifier la fiche',
+      'Cette fonctionnalité ouvre la fiche dans Outils → Fiche Technique pour modification. Enregistrez-la à nouveau après modification.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Ouvrir dans Outils',
+          onPress: () => {
+            // Stocker la fiche en mémoire pour la récupérer dans tools.tsx
+            global.__editFiche = fiche;
+            goBack();
+            setTimeout(() => {
+              const { router } = require('expo-router');
+              router.push({ pathname: '/(tabs)/tools', params: { editFiche: 'true' } });
+            }, 300);
+          }
+        }
+      ]
+    );
   }
 
   return (
@@ -62,43 +227,81 @@ function FichesPage({ goBack }: { goBack: () => void }) {
           <Empty icon="📋" text={"Aucune fiche sauvegardée\nAllez dans Outils → Fiche Technique → Enregistrer"} />
         ) : (
           fiches.map((f: any) => {
+            const isOpen = expandedId === f.id;
             const ings = typeof f.ingredients === 'string' ? JSON.parse(f.ingredients) : (f.ingredients || []);
             const date = new Date(f.updated_at).toLocaleDateString('fr-FR');
+
             return (
               <Card key={f.id} style={{ marginBottom: 10 }}>
-                <View style={{ padding: 14 }}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: Colors.cream, fontSize: 15, fontFamily: 'Cinzel_400Regular' }}>{f.nom}</Text>
-                      <Text style={{ color: Colors.muted, fontSize: 11, marginTop: 4 }}>
-                        🍽️ {f.portions} portions · 💰 {parseFloat(f.total_ht || 0).toFixed(2)}€ HT · 📅 {date}
-                      </Text>
-                    </View>
-                    <TouchableOpacity onPress={() => handleDelete(f.id, f.nom)} style={{ padding: 6 }}>
-                      <Text style={{ fontSize: 16 }}>🗑️</Text>
-                    </TouchableOpacity>
+                {/* ─── EN-TÊTE PLIÉ (toujours visible) ───── */}
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', padding: 14 }}
+                  onPress={() => setExpandedId(isOpen ? null : f.id)}
+                  activeOpacity={0.7}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: Colors.cream, fontSize: 14, fontFamily: 'DMSans_400Regular' }}>
+                      {f.emoji ? `${f.emoji} ` : ''}{f.nom}
+                    </Text>
                   </View>
+                  <Text style={{ color: Colors.gold, fontSize: 14 }}>{isOpen ? '▲' : '▼'}</Text>
+                </TouchableOpacity>
 
-                  {ings.length > 0 && (
-                    <View style={{ marginTop: 10, backgroundColor: 'rgba(212,175,55,0.05)', borderRadius: 8, padding: 10 }}>
-                      <Text style={{ color: Colors.gold, fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6 }}>Ingrédients</Text>
-                      {ings.filter((ig: any) => ig.d).map((ig: any, idx: number) => (
-                        <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
-                          <Text style={{ color: Colors.cream, fontSize: 12 }}>{ig.d}</Text>
-                          <Text style={{ color: Colors.muted, fontSize: 12 }}>{ig.q || '0'} {ig.u} · {ig.p || '0'}€</Text>
-                        </View>
-                      ))}
-                    </View>
-                  )}
+                {/* ─── CONTENU DÉPLIÉ ───── */}
+                {isOpen && (
+                  <View style={{ borderTopWidth: 1, borderTopColor: 'rgba(212,175,55,0.1)', padding: 14, paddingTop: 10 }}>
+                    {/* Infos */}
+                    <Text style={{ color: Colors.muted, fontSize: 11, marginBottom: 10 }}>
+                      🍽️ {f.portions} portions · 💰 {parseFloat(f.total_ht || 0).toFixed(2)}€ HT · 📅 {date}
+                    </Text>
 
-                  {f.progression ? (
-                    <View style={{ marginTop: 8 }}>
-                      <Text style={{ color: Colors.muted, fontSize: 10, fontStyle: 'italic', lineHeight: 16 }} numberOfLines={3}>
-                        👨‍🍳 {f.progression}
-                      </Text>
+                    {/* Ingrédients */}
+                    {ings.length > 0 && (
+                      <View style={{ backgroundColor: 'rgba(212,175,55,0.05)', borderRadius: 8, padding: 10, marginBottom: 10 }}>
+                        <Text style={{ color: Colors.gold, fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6 }}>Ingrédients</Text>
+                        {ings.filter((ig: any) => ig.d).map((ig: any, idx: number) => (
+                          <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
+                            <Text style={{ color: Colors.cream, fontSize: 12 }}>{ig.d}</Text>
+                            <Text style={{ color: Colors.muted, fontSize: 12 }}>{ig.q || '0'} {ig.u} · {ig.p || '0'}€</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
+                    {/* Progression */}
+                    {f.progression ? (
+                      <View style={{ marginBottom: 10 }}>
+                        <Text style={{ color: Colors.muted, fontSize: 10, fontStyle: 'italic', lineHeight: 16 }} numberOfLines={4}>
+                          👨‍🍳 {f.progression}
+                        </Text>
+                      </View>
+                    ) : null}
+
+                    {/* Boutons d'action */}
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <TouchableOpacity
+                        style={{ flex: 1, backgroundColor: 'rgba(212,175,55,0.1)', borderWidth: 1, borderColor: Colors.gold, borderRadius: 8, paddingVertical: 10, alignItems: 'center' }}
+                        onPress={() => handlePrint(f)}
+                      >
+                        <Text style={{ color: Colors.gold, fontSize: 11, fontWeight: 'bold' }}>🖨️ PDF</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={{ flex: 1, backgroundColor: 'rgba(212,175,55,0.1)', borderWidth: 1, borderColor: Colors.gold, borderRadius: 8, paddingVertical: 10, alignItems: 'center' }}
+                        onPress={() => handleEdit(f)}
+                      >
+                        <Text style={{ color: Colors.gold, fontSize: 11, fontWeight: 'bold' }}>✏️ Modifier</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={{ flex: 1, backgroundColor: 'rgba(248,113,113,0.1)', borderWidth: 1, borderColor: '#F87171', borderRadius: 8, paddingVertical: 10, alignItems: 'center' }}
+                        onPress={() => handleDelete(f.id, f.nom)}
+                      >
+                        <Text style={{ color: '#F87171', fontSize: 11, fontWeight: 'bold' }}>🗑️ Suppr.</Text>
+                      </TouchableOpacity>
                     </View>
-                  ) : null}
-                </View>
+                  </View>
+                )}
               </Card>
             );
           })
@@ -107,7 +310,6 @@ function FichesPage({ goBack }: { goBack: () => void }) {
     </SafeAreaView>
   );
 }
-
 export default function MoreScreen() {
   const [sub, setSub] = useState<SubPage>(null);
   const { user, state, addHaccpPhoto, clearAllData, logout } = useApp();

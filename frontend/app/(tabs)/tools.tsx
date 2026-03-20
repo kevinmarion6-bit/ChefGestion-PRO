@@ -7,6 +7,7 @@ import { Btn } from '@/components/UI';
 import { useApp } from '@/lib/context';
 import { Scan, Restaurant, Fiches } from '@/lib/api';
 import { Image } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 
 // ─── ACCORDION ───────────────────────────────────────────
 function Accordion({ icon, title, children }: { icon: string; title: string; children: React.ReactNode }) {
@@ -59,9 +60,27 @@ export default function ToolsScreen() {
 const { user } = useApp();
 const [restaurantName, setRestaurantName] = useState('');
 
+const { editFiche } = useLocalSearchParams<{ editFiche?: string }>();
+
 React.useEffect(() => {
   Restaurant.get().then(r => { if (r?.nom) setRestaurantName(r.nom); }).catch(() => {});
-}, []); 
+}, []);
+
+// Charger une fiche à modifier depuis le répertoire
+React.useEffect(() => {
+  if (editFiche === 'true' && global.__editFiche) {
+    const f = global.__editFiche;
+    setFNom(f.nom || '');
+    setFPortions(String(f.portions || 4));
+    setFPV(String(f.pv_ttc || ''));
+    setFPerte(String(f.perte || 2));
+    setFProg(f.progression || '');
+    setFicheEmoji(f.emoji || '');
+    const ings = typeof f.ingredients === 'string' ? JSON.parse(f.ingredients) : (f.ingredients || []);
+    if (ings.length > 0) setFicheIngs(ings);
+    global.__editFiche = null;
+  }
+}, [editFiche]); 
   // Marge
   const [mPV, setMPV] = useState('');
   const [mCM, setMCM] = useState('');
@@ -87,6 +106,18 @@ React.useEffect(() => {
   const [recipes, setRecipes] = useState<any[]>([]);
   const [recLoading, setRecLoading] = useState(false);
   const [recShowCount, setRecShowCount] = useState(3);
+  const [ficheEmoji, setFicheEmoji] = useState('');
+
+  const FICHE_EMOJIS = [
+    { emoji: '🥗', label: 'Salade' },
+    { emoji: '🥩', label: 'Viande' },
+    { emoji: '🐟', label: 'Poisson' },
+    { emoji: '🍰', label: 'Dessert' },
+    { emoji: '🍨', label: 'Glace' },
+    { emoji: '🧀', label: 'Fromage' },
+    { emoji: '🥚', label: 'Œuf' },
+    { emoji: '🍝', label: 'Pâtes' },
+  ];
   // ─── MARGE CALC ─────
   function margeCalc() {
     const pv = parseFloat(mPV) || 0;
@@ -150,472 +181,180 @@ React.useEffect(() => {
       const prix = parseFloat((i.p || '0').replace(',', '.'));
       const qte = parseFloat((i.q || '0').replace(',', '.'));
       const total = prix * qte;
-      return `<tr class="${idx % 2 === 0 ? 'even' : 'odd'}">
-        <td class="td-nom">${i.d || '—'}</td>
+      return `<tr class="${idx % 2 === 0 ? 'row-even' : 'row-odd'}">
+        <td>${i.d || '—'}</td>
         <td class="td-center">${i.u}</td>
         <td class="td-right">${prix.toFixed(3)} €</td>
         <td class="td-center">${qte.toFixed(3)}</td>
-        <td class="td-right td-total">${total.toFixed(3)} €</td>
+        <td class="td-gold">${total.toFixed(3)} €</td>
       </tr>`;
     }).join('');
-
-    // Formater la progression avec des numéros d'étapes
-    const progression = (fProg || '—').split('\n').filter(l => l.trim()).map((line, i) => 
-      `<div class="step"><span class="step-num">${i + 1}</span><span class="step-text">${line.trim()}</span></div>`
-    ).join('');
 
     const html = `<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Lato:wght@300;400;700&display=swap');
-
-    @page { 
-      margin: 0; 
-      size: A4;
-    }
-
+    @page { margin: 0; size: A4; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Helvetica, Arial, sans-serif; color: #2C2C2C; background: #FFFFFF; }
+    table.layout { border: none; border-collapse: collapse; }
+    table.layout td { border: none; vertical-align: middle; }
 
-    body {
-      font-family: 'Lato', 'Helvetica Neue', sans-serif;
-      color: #2C2C2C;
-      background: #FFFFFF;
-      max-width: 100%;
-      padding: 0;
-    }
+    .header-bg { background-color: #111111; padding: 20px 40px; }
+    .header-logo { width: 76px; height: 76px; border-radius: 14px; border: 2px solid #D4AF37; }
+    .header-brand { font-size: 14px; letter-spacing: 5px; text-transform: uppercase; color: #D4AF37; padding-bottom: 4px; }
+    .header-restaurant { font-size: 24px; color: #F5F5DC; font-weight: 600; letter-spacing: 1px; }
+    .header-chef { font-size: 14px; color: #F5F5DC; padding-top: 5px; }
+    .header-chef-title { color: #D4AF37; font-weight: 600; }
+    .header-date { font-size: 15px; color: #8A7A60; text-align: right; }
+    .gold-bar { height: 3px; background-color: #D4AF37; }
 
-    /* ─── EN-TÊTE ─────────────────────────── */
-    .header {
-      background: linear-gradient(135deg, #0C0C0C 0%, #1A1A1A 100%);
-      padding: 20px 40px;
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      gap: 24px;
-    }
+    .title-section { text-align: center; padding: 14px 40px 0; }
+    .title-box { border: 2px solid #D4AF37; border-radius: 8px; padding: 10px 20px; display: inline-block; }
+    .title-label { font-size: 8px; letter-spacing: 4px; text-transform: uppercase; color: #A07D1C; padding-bottom: 6px; }
+    .title-name { font-size: 26px; color: #1A1A1A; font-weight: 700; letter-spacing: 1px; }
 
-    .header-logo {
-      width: 76px;
-      height: 76px;
-      border-radius: 14px;
-      border: 2px solid #D4AF37;
-    }
+    .kpi-table { width: 100%; padding: 14px 40px; }
+    .kpi-cell { width: 25%; padding: 4px; }
+    .kpi-box { border: 1px solid #E8E0D0; border-radius: 6px; padding: 8px 6px; text-align: center; background-color: #FAFAF7; border-top: 3px solid #D4AF37; }
+    .kpi-label { font-size: 7px; letter-spacing: 2px; text-transform: uppercase; color: #8A7A60; padding-bottom: 4px; }
+    .kpi-value { font-family: Helvetica, Arial, sans-serif; font-size: 20px; color: #A07D1C; font-weight: 700; }
+    .kpi-icon { font-size: 16px; padding-bottom: 4px; }
 
-    .header-info {
-      flex: 1;
-    }
+    .section { padding: 0 40px; margin-bottom: 12px; }
+    .section-head-table { width: 100%; margin-bottom: 10px; }
+    .section-icon { font-size: 16px; width: 26px; }
+    .section-title { font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #1A1A1A; font-weight: 600; white-space: nowrap; padding-right: 10px; }
+    .section-line { border-bottom: 1px solid #D4AF37; }
 
-    .header-brand {
-      font-family: 'Playfair Display', Georgia, serif;
-      font-size: 14px;
-      letter-spacing: 5px;
-      text-transform: uppercase;
-      color: #D4AF37;
-      margin-bottom: 4px;
-    }
+    table.ingredients { width: 100%; border-collapse: collapse; border: 1px solid #E8E0D0; }
+    table.ingredients thead th { background-color: #111111; color: #D4AF37; padding: 8px 10px; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; font-weight: 700; text-align: left; }
+    table.ingredients thead th:last-child { text-align: right; }
+    table.ingredients td { padding: 5px 10px; font-size: 11px; border-bottom: 1px solid #EEE; }
+    .td-center { text-align: center; color: #555; }
+    .td-right { text-align: right; }
+    .td-gold { text-align: right; color: #A07D1C; font-weight: 700; }
+    .row-even { background-color: #FFFFFF; }
+    .row-odd { background-color: #FAFAF7; }
+    .total-row { background-color: #FBF8F0; border-top: 2px solid #D4AF37; }
+    .total-row td { padding: 10px; font-weight: 700; font-size: 13px; }
 
-    .header-restaurant {
-      font-family: 'Playfair Display', Georgia, serif;
-      font-size: 24px;
-      color: #F5F5DC;
-      font-weight: 600;
-      letter-spacing: 1px;
-    }
+    .synth-cell { width: 33.33%; padding: 4px; }
 
-    .header-chef {
-      font-size: 14px;
-      color: #F5F5DC;
-      margin-top: 5px;
-    }
+    .progression-box { background-color: #FAFAF7; border: 1px solid #E8E0D0; border-radius: 8px; padding: 14px; }
+    .step-table { width: 100%; }
+    .step-num { background-color: #D4AF37; color: #FFFFFF; font-size: 10px; font-weight: 700; width: 22px; height: 22px; border-radius: 50%; text-align: center; line-height: 22px; }
+    .step-text { font-size: 12px; color: #333; line-height: 1.7; padding-left: 10px; }
 
-    .header-chef-title {
-      color: #D4AF37;
-      font-weight: 600;
-      font-family: 'Playfair Display', Georgia, serif;
-    }
-
-    .header-date {
-      font-size: 12px;
-      color: #8A7A60;
-      text-align: right;
-    }
-
-    /* ─── GOLD BAR ─────────────────────────── */
-    .gold-bar {
-      height: 3px;
-      background: linear-gradient(90deg, #A07D1C, #D4AF37, #EAD06A, #D4AF37, #A07D1C);
-    }
-
-    /* ─── TITRE FICHE ─────────────────────── */
-    .fiche-title-section {
-      padding: 14px 40px 0;
-      text-align: center;
-    }
-
-    .fiche-title-box {
-      border: 2px solid #D4AF37;
-      border-radius: 8px;
-      padding: 16px 24px;
-      display: inline-block;
-      background: linear-gradient(135deg, rgba(212,175,55,0.04) 0%, rgba(212,175,55,0.01) 100%);
-    }
-
-    .fiche-label {
-      font-size: 8px;
-      letter-spacing: 4px;
-      text-transform: uppercase;
-      color: #A07D1C;
-      margin-bottom: 6px;
-    }
-
-    .fiche-title {
-      font-family: 'Playfair Display', Georgia, serif;
-      font-size: 26px;
-      color: #1A1A1A;
-      font-weight: 700;
-      letter-spacing: 1px;
-    }
-
-    /* ─── KPI CARDS ─────────────────────────── */
-    .kpi-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr 1fr;
-      gap: 8px;
-      padding: 14px 40px;
-    }
-
-    .kpi-card {
-      border: 1px solid #E8E0D0;
-      border-radius: 6px;
-      padding: 8px 6px;
-      text-align: center;
-      background: #FAFAF7;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .kpi-card::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 3px;
-      background: #D4AF37;
-    }
-
-    .kpi-icon {
-      font-size: 16px;
-      margin-bottom: 4px;
-    }
-
-    .kpi-label {
-      font-size: 7px;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      color: #8A7A60;
-      margin-bottom: 6px;
-    }
-
-    .kpi-value {
-      font-family: 'Playfair Display', Georgia, serif;
-      font-size: 20px;
-      color: #A07D1C;
-      font-weight: 700;
-    }
-
-    /* ─── SECTION TITLE ────────────────────── */
-    .section {
-      padding: 0 40px;
-      margin-bottom: 12px;
-    }
-
-    .section-header {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 12px;
-    }
-
-    .section-icon {
-      font-size: 16px;
-    }
-
-    .section-title {
-      font-family: 'Playfair Display', Georgia, serif;
-      font-size: 13px;
-      letter-spacing: 3px;
-      text-transform: uppercase;
-      color: #1A1A1A;
-      font-weight: 600;
-    }
-
-    .section-line {
-      flex: 1;
-      height: 1px;
-      background: linear-gradient(90deg, #D4AF37, transparent);
-    }
-
-    /* ─── TABLEAU INGRÉDIENTS ──────────────── */
-    table {
-      width: 100%;
-      border-collapse: separate;
-      border-spacing: 0;
-      border-radius: 8px;
-      overflow: hidden;
-      border: 1px solid #E8E0D0;
-    }
-
-    thead th {
-      background: linear-gradient(135deg, #111111 0%, #1A1A1A 100%);
-      color: #D4AF37;
-      padding: 10px 12px;
-      font-size: 9px;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      font-weight: 700;
-      text-align: left;
-    }
-
-    thead th:last-child {
-      text-align: right;
-    }
-
-    .td-nom { 
-      padding: 5px 10px; 
-      font-weight: 400;
-      font-size: 11px;
-    }
-
-    .td-center { 
-      padding: 5px 10px; 
-      text-align: center; 
-      font-size: 11px;
-      color: #555;
-    }
-
-    .td-right { 
-      padding: 5px 10px; 
-      text-align: right; 
-      font-size: 11px;
-      font-family: 'Lato', monospace;
-    }
-
-    .td-total {
-      color: #A07D1C;
-      font-weight: 700;
-    }
-
-    tr.even { background: #FFFFFF; }
-    tr.odd  { background: #FAFAF7; }
-
-    /* Ligne total */
-    .total-row {
-      background: linear-gradient(135deg, rgba(212,175,55,0.08) 0%, rgba(212,175,55,0.03) 100%) !important;
-      border-top: 2px solid #D4AF37;
-    }
-
-    .total-row td {
-      padding: 12px;
-      font-weight: 700;
-      font-size: 13px;
-    }
-
-    /* ─── PROGRESSION ──────────────────────── */
-    .progression-box {
-      background: #FAFAF7;
-      border: 1px solid #E8E0D0;
-      border-radius: 8px;
-      padding: 14px;
-    }
-
-    .step {
-      display: flex;
-      flex-direction: row;
-      align-items: flex-start;
-      gap: 10px;
-      margin-bottom: 6px;
-      line-height: 1.4;
-    }
-
-    .step:last-child { margin-bottom: 0; }
-
-    .step-num {
-      background: #D4AF37;
-      color: #FFFFFF;
-      font-size: 10px;
-      font-weight: 700;
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      margin-top: 2px;
-    }
-
-    .step-text {
-      font-family: 'Playfair Display', Georgia, serif;
-      font-size: 12px;
-      color: #333;
-      line-height: 1.7;
-      flex: 1;
-    }
-
-    /* ─── PIED DE PAGE ─────────────────────── */
-    .footer {
-      margin-top: 16px;
-      background: linear-gradient(135deg, #0C0C0C 0%, #1A1A1A 100%);
-      padding: 18px 40px;
-      display: flex;
-      flex-direction: row;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .footer-left {
-      font-size: 10px;
-      color: #8A7A60;
-      font-style: italic;
-    }
-
-    .footer-center {
-      font-family: 'Playfair Display', Georgia, serif;
-      font-size: 10px;
-      letter-spacing: 3px;
-      color: #D4AF37;
-      text-transform: uppercase;
-    }
-
-    .footer-right {
-      font-size: 10px;
-      color: #8A7A60;
-    }
+    .footer-bg { background-color: #111111; padding: 18px 40px; margin-top: 16px; }
+    .footer-left { font-size: 10px; color: #8A7A60; font-style: italic; }
+    .footer-center { font-size: 10px; letter-spacing: 3px; color: #D4AF37; text-transform: uppercase; text-align: center; }
+    .footer-right { font-size: 10px; color: #8A7A60; text-align: right; }
   </style>
 </head>
 <body>
 
   <!-- EN-TÊTE -->
-  <div class="header">
-    <img src="${logoUrl}" class="header-logo" />
-    <div class="header-info">
-      <div class="header-brand">✦ ChefGestion Pro ✦</div>
-      ${restName ? `<div class="header-restaurant">🍽️ ${restName}</div>` : ''}
-      <div class="header-chef">👨‍🍳 &nbsp; <span class="header-chef-title">Chef</span> &nbsp; ${chefName}</div>
-    </div>
-    <div class="header-date">📅 ${today}</div>
+  <div class="header-bg">
+    <table class="layout" width="100%"><tr>
+      <td width="80"><img src="${logoUrl}" class="header-logo" /></td>
+      <td style="padding-left:24px;">
+        <div class="header-brand">✦ ChefGestion Pro ✦</div>
+        ${restName ? `<div class="header-restaurant">🍽️ ${restName}</div>` : ''}
+        <div class="header-chef">👨‍🍳 &nbsp; <span class="header-chef-title">Chef</span> &nbsp; ${chefName}</div>
+      </td>
+      <td class="header-date">📅 ${today}</td>
+    </tr></table>
   </div>
-
   <div class="gold-bar"></div>
 
   <!-- TITRE DU PLAT -->
-  <div class="fiche-title-section">
-    <div class="fiche-title-box">
-      <div class="fiche-label">📋 Fiche Technique de Production ${year}</div>
-      <div class="fiche-title">${fNom || 'Sans titre'}</div>
+  <div class="title-section">
+    <div class="title-box">
+      <div class="title-label">📋 Fiche Technique de Production ${year}</div>
+      <div class="title-name">${fNom || 'Sans titre'}</div>
     </div>
   </div>
 
   <!-- KPI CARDS -->
-  <div class="kpi-grid">
-    <div class="kpi-card">
-      <div class="kpi-icon">🍽️</div>
-      <div class="kpi-label">Nb Portions</div>
-      <div class="kpi-value">${fPortions}</div>
-    </div>
-    <div class="kpi-card">
-      <div class="kpi-icon">💰</div>
-      <div class="kpi-label">Coût Total HT</div>
-      <div class="kpi-value">${fc.total.toFixed(2)}€</div>
-    </div>
-    <div class="kpi-card">
-      <div class="kpi-icon">🏷️</div>
-      <div class="kpi-label">Prix / Portion</div>
-      <div class="kpi-value">${fc.pp.toFixed(2)}€</div>
-    </div>
-    <div class="kpi-card">
-      <div class="kpi-icon">📊</div>
-      <div class="kpi-label">Taux Marge</div>
-      <div class="kpi-value">${fc.tm.toFixed(1)}%</div>
-    </div>
+  <div class="kpi-table">
+    <table class="layout" width="100%"><tr>
+      <td class="kpi-cell"><div class="kpi-box"><div class="kpi-icon">🍽️</div><div class="kpi-label">Nb Portions</div><div class="kpi-value">${fPortions}</div></div></td>
+      <td class="kpi-cell"><div class="kpi-box"><div class="kpi-icon">💰</div><div class="kpi-label">Coût Total HT</div><div class="kpi-value">${fc.total.toFixed(2)}€</div></div></td>
+      <td class="kpi-cell"><div class="kpi-box"><div class="kpi-icon">🏷️</div><div class="kpi-label">Prix / Portion</div><div class="kpi-value">${fc.pp.toFixed(2)}€</div></div></td>
+      <td class="kpi-cell"><div class="kpi-box"><div class="kpi-icon">📊</div><div class="kpi-label">Taux Marge</div><div class="kpi-value">${fc.tm.toFixed(1)}%</div></div></td>
+    </tr></table>
   </div>
 
   <!-- TABLEAU INGRÉDIENTS -->
   <div class="section">
-    <div class="section-header">
-      <span class="section-icon">🥘</span>
-      <span class="section-title">Ingrédients & Valorisation</span>
-      <div class="section-line"></div>
-    </div>
+    <table class="section-head-table layout"><tr>
+      <td class="section-icon">🥘</td>
+      <td class="section-title">Ingrédients & Valorisation</td>
+      <td class="section-line" width="100%"></td>
+    </tr></table>
 
-    <table>
-      <thead>
-        <tr>
-          <th>Denrée</th>
-          <th style="text-align:center;">Unité</th>
-          <th style="text-align:right;">Prix Unit. HT</th>
-          <th style="text-align:center;">Quantité</th>
-          <th style="text-align:right;">PR HT</th>
-        </tr>
-      </thead>
+    <table class="ingredients">
+      <thead><tr>
+        <th>Denrée</th>
+        <th style="text-align:center;">Unité</th>
+        <th style="text-align:right;">Prix Unit. HT</th>
+        <th style="text-align:center;">Quantité</th>
+        <th style="text-align:right;">PR HT</th>
+      </tr></thead>
       <tbody>
         ${rows}
         <tr class="total-row">
           <td colspan="4" style="text-align:right; color:#1A1A1A;">TOTAL COÛT MATIÈRE HT</td>
-          <td class="td-right td-total" style="font-size:15px;">${fc.total.toFixed(2)} €</td>
+          <td class="td-gold" style="font-size:15px;">${fc.total.toFixed(2)} €</td>
         </tr>
       </tbody>
     </table>
   </div>
 
-  <!-- RÉSUMÉ FINANCIER -->
+  <!-- SYNTHÈSE FINANCIÈRE -->
   <div class="section">
-    <div class="section-header">
-      <span class="section-icon">💶</span>
-      <span class="section-title">Synthèse Financière</span>
-      <div class="section-line"></div>
-    </div>
+    <table class="section-head-table layout"><tr>
+      <td class="section-icon">💶</td>
+      <td class="section-title">Synthèse Financière</td>
+      <td class="section-line" width="100%"></td>
+    </tr></table>
 
-    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
-      <div class="kpi-card">
-        <div class="kpi-label">PV HT</div>
-        <div class="kpi-value">${fc.pvht.toFixed(2)}€</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Marge Brute</div>
-        <div class="kpi-value">${fc.mb.toFixed(2)}€</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Prix Portion Avec Perte</div>
-        <div class="kpi-value">${fc.ppav.toFixed(2)}€</div>
-      </div>
-    </div>
+    <table class="layout" width="100%"><tr>
+      <td class="synth-cell"><div class="kpi-box"><div class="kpi-label">PV HT</div><div class="kpi-value">${fc.pvht.toFixed(2)}€</div></div></td>
+      <td class="synth-cell"><div class="kpi-box"><div class="kpi-label">Marge Brute</div><div class="kpi-value">${fc.mb.toFixed(2)}€</div></div></td>
+      <td class="synth-cell"><div class="kpi-box"><div class="kpi-label">Prix Portion Avec Perte</div><div class="kpi-value">${fc.ppav.toFixed(2)}€</div></div></td>
+    </tr></table>
   </div>
 
   <!-- PROGRESSION -->
   <div class="section">
-    <div class="section-header">
-      <span class="section-icon">👨‍🍳</span>
-      <span class="section-title">Progression de la Recette</span>
-      <div class="section-line"></div>
-    </div>
+    <table class="section-head-table layout"><tr>
+      <td class="section-icon">👨‍🍳</td>
+      <td class="section-title">Progression de la Recette</td>
+      <td class="section-line" width="100%"></td>
+    </tr></table>
 
     <div class="progression-box">
-      ${progression}
+      <table class="step-table">
+        ${(fProg || '—').split('\\n').filter(l => l.trim()).map((line, i) =>
+          `<tr><td width="32" style="vertical-align:top;padding:3px 0;"><div class="step-num">${i + 1}</div></td><td class="step-text">${line.trim()}</td></tr>`
+        ).join('')}
+      </table>
     </div>
   </div>
 
   <!-- PIED DE PAGE -->
-  <div class="footer">
-    <div class="footer-left">📄 Document généré automatiquement</div>
-    <div class="footer-center">✦ ChefGestion Pro ✦</div>
-    <div class="footer-right">© ${year} — Tous droits réservés</div>
+  <div class="footer-bg">
+    <table class="layout" width="100%"><tr>
+      <td class="footer-left" width="33%">📄 Document généré automatiquement</td>
+      <td class="footer-center" width="34%">✦ ChefGestion Pro ✦</td>
+      <td class="footer-right" width="33%">© ${year} — Tous droits réservés</td>
+    </tr></table>
   </div>
 
+  <script>(function(){var b=document.body,p=1122;if(b.scrollHeight>p){var s=p/b.scrollHeight;if(s<0.7)s=0.7;b.style.transform='scale('+s+')';b.style.transformOrigin='top left';b.style.width=(100/s)+'%';}})()</script>
 </body>
 </html>`;
 
@@ -637,6 +376,7 @@ React.useEffect(() => {
         progression: fProg,
         ingredients: ficheIngs,
         total_ht: fc.total,
+        emoji: ficheEmoji,
       });
       Alert.alert('✅ Fiche sauvegardée !', 'Retrouvez-la dans Plus → Répertoire de Fiches Techniques');
     } catch (err) {
@@ -741,7 +481,25 @@ React.useEffect(() => {
               </View>
             ))}
           </View>
-
+<Text style={styles.calcLabel}>Emoji de la fiche</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {FICHE_EMOJIS.map(e => (
+                <TouchableOpacity
+                  key={e.emoji}
+                  style={{
+                    padding: 8, borderRadius: 8, borderWidth: 1, alignItems: 'center', minWidth: 50,
+                    borderColor: ficheEmoji === e.emoji ? Colors.gold : 'rgba(212,175,55,0.15)',
+                    backgroundColor: ficheEmoji === e.emoji ? 'rgba(212,175,55,0.15)' : 'transparent',
+                  }}
+                  onPress={() => setFicheEmoji(ficheEmoji === e.emoji ? '' : e.emoji)}
+                >
+                  <Text style={{ fontSize: 22 }}>{e.emoji}</Text>
+                  <Text style={{ fontSize: 8, color: Colors.muted, marginTop: 2 }}>{e.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
           <Text style={styles.calcLabel}>Progression de la recette</Text>
           <TextInput style={[styles.calcInput, { height: 80, textAlignVertical: 'top' }]} value={fProg} onChangeText={setFProg} placeholder="Étapes de préparation..." placeholderTextColor={Colors.muted} multiline numberOfLines={3} />
 

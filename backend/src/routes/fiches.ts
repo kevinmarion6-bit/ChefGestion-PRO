@@ -25,7 +25,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
 
 // POST /api/fiches — Sauvegarder une fiche
 router.post('/', requireAuth, async (req: AuthRequest, res: Response) => {
-  const { nom, portions, pv_ttc, perte, progression, ingredients, total_ht } = req.body;
+  const { nom, portions, pv_ttc, perte, progression, ingredients, total_ht, emoji } = req.body;
 
   if (!nom?.trim()) {
     return res.status(400).json({ ok: false, error: 'Nom du plat requis' });
@@ -43,6 +43,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res: Response) => {
         progression: progression || '',
         ingredients: JSON.stringify(ingredients || []),
         total_ht: total_ht || 0,
+        emoji: emoji || '',
         updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id,nom' })
       .select()
