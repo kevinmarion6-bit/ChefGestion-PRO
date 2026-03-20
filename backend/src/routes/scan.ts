@@ -350,6 +350,19 @@ router.post('/haccp-update', requireAuth, async (req: AuthRequest, res: Response
   const userId = req.userId!;
  
   try {
+    // Si valeur est null, supprimer le relevé existant
+    if (valeur === null || valeur === undefined) {
+      await supabase
+        .from('temperature_logs')
+        .delete()
+        .eq('user_id', userId)
+        .eq('date', date)
+        .eq('periode', periode)
+        .eq('fridge_id', fridge_id || '');
+      
+      res.json({ ok: true });
+      return;
+    }
     // Récupère le nom du frigo si fourni
     let fridge_nom = '';
     if (fridge_id) {

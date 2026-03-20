@@ -195,8 +195,8 @@ async function generateCurrentArchive() {
   // ─── ENREGISTRER ─────────────────────────────────────────
   const handleSave = async () => {
     if (modalMode === 'temperature') {
-      const cleanValue = tempValue.replace(',', '.');
-      if (!cleanValue || isNaN(Number(cleanValue))) {
+      const cleanValue = tempValue.replace(',', '.').trim();
+      if (cleanValue && isNaN(Number(cleanValue))) {
         Alert.alert('Erreur', 'Veuillez entrer un chiffre valide.');
         return;
       }
@@ -215,7 +215,7 @@ async function generateCurrentArchive() {
 
       if (modalMode === 'temperature') {
         payload.periode = selectedPeriode;
-        payload.valeur = parseFloat(tempValue.replace(',', '.'));
+        payload.valeur = tempValue.trim() === '' ? null : parseFloat(tempValue.replace(',', '.'));
         payload.commentaire = '';
       } else {
         // Commentaire : on cherche s'il y a un log existant pour récupérer sa période
@@ -245,14 +245,24 @@ async function generateCurrentArchive() {
   // ─── EXPORT PDF ──────────────────────────────────────────
   const exportPdf = async () => {
     let restName = restaurantName;
+    let chefName = 'Le Chef';
     if (!restName) {
-      try {
-        const r = await Restaurant.get();
-        if (r?.nom) restName = r.nom;
-      } catch {}
+      try { const r = await Restaurant.get(); if (r?.nom) restName = r.nom; } catch {}
     }
-    const fridgesToShow = fridges.length > 0 ? fridges : [{ id: null, nom: 'Sans équipement', type: 'positif' }];
+    try {
+      const token = await getToken();
+      const meRes = await fetch(`${API_URL}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } });
+      const meJson = await meRes.json();
+      if (meJson.ok && meJson.data?.name) chefName = meJson.data.name;
+    } catch {}
+
+    const currentHour = new Date().getHours();
+    const currentService = (currentHour >= 2 && currentHour < 16) ? 'MIDI' : 'SOIR';
+    const exportDate = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+    const year = new Date().getFullYear();
     const logoUrl = 'https://osnckjlgqqawcgduideb.supabase.co/storage/v1/object/public/assets/logo.png';
+
+    const fridgesToShow = fridges.length > 0 ? fridges : [{ id: null, nom: 'Sans équipement', type: 'positif', temp_min: 0, temp_max: 4, emoji: '' }];
 
     let pagesHtml = '';
 
@@ -261,58 +271,126 @@ async function generateCurrentArchive() {
         ? logs.filter(l => l.fridge_id === fridge.id || (l.fridge_nom && l.fridge_nom === fridge.nom))
         : logs.filter(l => !l.fridge_id);
       const isFreez = fridge.type === 'negatif' || fridge.nom?.toLowerCase().includes('congél') || fridge.nom?.toLowerCase().includes('surgél');
+      const tempMin = fridge.temp_min ?? (isFreez ? -21 : 0);
+      const tempMax = fridge.temp_max ?? (isFreez ? -18 : 4);
+      const fridgeEmoji = fridge.emoji || (isFreez ? '🧊' : '❄️');
 
-      let rows = '';
+      let dataRows = '';
       for (let day = 1; day <= daysInMonth; day++) {
         const dateStr = `${viewMonthStr}-${day.toString().padStart(2, '0')}`;
         const midi = fridgeLogs.find(l => l.date === dateStr && l.periode === 'MIDI');
         const soir = fridgeLogs.find(l => l.date === dateStr && l.periode === 'SOIR');
         const comment = midi?.commentaire || soir?.commentaire || '';
-        rows += `<tr>
-          <td>${day}</td>
-          <td style="color:${getTempColor(midi?.valeur)};font-weight:bold;">${midi ? midi.valeur + '°C' : '--'}</td>
-          <td style="color:${getTempColor(soir?.valeur)};font-weight:bold;">${soir ? soir.valeur + '°C' : '--'}</td>
-          <td style="font-style:italic;color:#888;font-size:11px;">${comment}</td>
+        const bgColor = day % 2 === 0 ? '#FFFFFF' : '#FAFAF7';
+
+        const colorMidi = midi?.valeur != null ? getTempColor(midi.valeur) : '#999';
+        const colorSoir = soir?.valeur != null ? getTempColor(soir.valeur) : '#999';
+
+        dataRows += `<tr>
+          <td style="padding:4px 8px;font-size:11px;border-bottom:1px solid #EEE;text-align:center;background-color:${bgColor};font-weight:bold;color:#8A7A60;">${day}</td>
+          <td style="padding:4px 8px;font-size:12px;border-bottom:1px solid #EEE;text-align:center;background-color:${bgColor};color:${colorMidi};font-weight:bold;">${midi ? midi.valeur + '°C' : '--'}</td>
+          <td style="padding:4px 8px;font-size:12px;border-bottom:1px solid #EEE;text-align:center;background-color:${bgColor};color:${colorSoir};font-weight:bold;">${soir ? soir.valeur + '°C' : '--'}</td>
+          <td style="padding:4px 8px;font-size:10px;border-bottom:1px solid #EEE;background-color:${bgColor};color:#888;font-style:italic;">${comment}</td>
         </tr>`;
       }
 
       pagesHtml += `
-        <div class="page">
-          <div class="page-header">
-            <img src="${logoUrl}" class="logo" />
-            <div class="header-text">
-              <h1>RELEVÉS DE TEMPÉRATURES HACCP</h1>
-              ${restaurantName ? `<p class="restaurant">${restaurantName}</p>` : ''}
-              <p class="meta">${viewMonthLabel} — Exporté le ${new Date().toLocaleDateString('fr-FR')}</p>
-            </div>
-          </div>
-          <h2>${isFreez ? '🧊' : '❄️'} ${fridge.nom}</h2>
-          <table>
-            <thead><tr><th>Jour</th><th>MIDI</th><th>SOIR</th><th>Commentaire</th></tr></thead>
-            <tbody>${rows}</tbody>
+<!-- PAGE ${fridge.nom} -->
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#111111;">
+  <tr><td style="padding:14px 40px;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        <td width="80" style="vertical-align:middle;">
+          <img src="${logoUrl}" width="90" height="90" />
+        </td>
+        <td style="padding-left:24px;vertical-align:middle;">
+          <table cellpadding="0" cellspacing="0" border="0">
+            <tr><td style="font-size:14px;letter-spacing:5px;text-transform:uppercase;color:#D4AF37;padding-bottom:4px;">✦ ChefGestion Pro ✦</td></tr>
+            ${restName ? `<tr><td style="font-size:24px;color:#F5F5DC;font-weight:bold;letter-spacing:1px;">🍽️ ${restName}</td></tr>` : ''}
+            <tr><td style="font-size:14px;color:#F5F5DC;padding-top:5px;">👨‍🍳 &nbsp; <span style="color:#D4AF37;font-weight:bold;">Chef</span> &nbsp; ${chefName}</td></tr>
           </table>
-        </div>`;
+        </td>
+        <td style="vertical-align:middle;text-align:right;">
+          <span style="font-size:9px;color:#8A7A60;text-transform:uppercase;letter-spacing:1px;">Exporté le</span>
+          <br/><span style="font-size:14px;color:#8A7A60;">📅 ${exportDate}</span>
+          <br/><span style="font-size:11px;color:#D4AF37;">Service ${currentService}</span>
+        </td>
+      </tr>
+    </table>
+  </td></tr>
+</table>
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0">
+  <tr><td style="height:3px;background-color:#D4AF37;"></td></tr>
+</table>
+
+<!-- TITRE -->
+<table width="100%" cellpadding="0" cellspacing="0" border="0">
+  <tr><td style="text-align:center;padding:8px 40px 0;">
+    <table cellpadding="0" cellspacing="0" border="0" align="center" style="border:2px solid #D4AF37;">
+      <tr><td style="padding:10px 20px;text-align:center;">
+        <table cellpadding="0" cellspacing="0" border="0" width="100%">
+          <tr><td style="font-size:8px;letter-spacing:4px;text-transform:uppercase;color:#A07D1C;text-align:center;padding-bottom:6px;">🌡️ Relevés de Températures HACCP — ${viewMonthLabel}</td></tr>
+          <tr><td style="font-size:22px;color:#1A1A1A;font-weight:bold;text-align:center;">${fridgeEmoji} ${fridge.nom}</td></tr>
+          <tr><td style="font-size:11px;color:#8A7A60;text-align:center;padding-top:4px;">Plage autorisée : ${tempMin}°C à ${tempMax}°C</td></tr>
+        </table>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+
+<!-- TABLEAU RELEVÉS -->
+<table width="100%" cellpadding="0" cellspacing="0" border="0">
+  <tr><td style="padding:8px 40px 8px;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:10px;">
+      <tr>
+        <td width="26" style="font-size:16px;vertical-align:middle;">📊</td>
+        <td style="font-size:13px;letter-spacing:3px;text-transform:uppercase;color:#1A1A1A;font-weight:bold;vertical-align:middle;white-space:nowrap;padding-right:10px;">Relevés du mois</td>
+        <td width="100%" style="vertical-align:middle;"><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-bottom:1px solid #D4AF37;height:1px;"></td></tr></table></td>
+      </tr>
+    </table>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E8E0D0;border-collapse:collapse;">
+      <tr>
+        <th style="background-color:#111111;color:#D4AF37;padding:6px 8px;font-size:9px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;text-align:center;border:1px solid #E8E0D0;">Jour</th>
+        <th style="background-color:#111111;color:#D4AF37;padding:6px 8px;font-size:9px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;text-align:center;border:1px solid #E8E0D0;">☀️ MIDI</th>
+        <th style="background-color:#111111;color:#D4AF37;padding:6px 8px;font-size:9px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;text-align:center;border:1px solid #E8E0D0;">🌙 SOIR</th>
+        <th style="background-color:#111111;color:#D4AF37;padding:6px 8px;font-size:9px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;text-align:left;border:1px solid #E8E0D0;">💬 Commentaire</th>
+      </tr>
+      ${dataRows}
+    </table>
+  </td></tr>
+</table>
+
+<!-- PIED DE PAGE -->
+</td></tr>
+<tr><td style="vertical-align:bottom;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="height:100vh;"><tr><td style="vertical-align:top;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#111111;">
+  <tr>
+    <td width="33%" style="padding:14px 40px;font-size:10px;color:#8A7A60;font-style:italic;">📄 Document généré automatiquement</td>
+    <td width="34%" style="padding:14px 0;font-size:10px;letter-spacing:3px;color:#D4AF37;text-transform:uppercase;text-align:center;">✦ ChefGestion Pro ✦</td>
+    <td width="33%" style="padding:14px 40px;font-size:10px;color:#8A7A60;text-align:right;">© ${year} — Tous droits réservés</td>
+  </tr>
+</table>
+</td></tr>
+</table>
+
+<div style="page-break-after:always;"></div>
+`;
     }
 
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
-      <style>
-        @page { margin: 20px 24px; }
-        body { font-family: Georgia, serif; margin: 0; padding: 0; color: #222; }
-        .page { page-break-after: always; padding: 0; }
-        .page:last-child { page-break-after: auto; }
-        .page-header { display: flex; flex-direction: row; align-items: center; gap: 14px; border-bottom: 2px solid #D4AF37; padding-bottom: 12px; margin-bottom: 16px; }
-        .logo { width: 50px; height: 50px; border-radius: 8px; }
-        .header-text { flex: 1; }
-        h1 { margin: 0; font-size: 16px; letter-spacing: 2px; color: #111; }
-        .restaurant { margin: 2px 0 0; font-size: 13px; color: #D4AF37; font-weight: bold; }
-        .meta { margin: 2px 0 0; color: #888; font-size: 11px; }
-        h2 { color: #D4AF37; font-size: 14px; border-bottom: 1px solid #D4AF37; padding-bottom: 6px; margin: 0 0 10px; }
-        table { width: 100%; border-collapse: collapse; }
-        th { background: #111; color: #D4AF37; padding: 6px; font-size: 10px; text-align: center; }
-        td { padding: 5px 6px; border-bottom: 1px solid #eee; text-align: center; font-size: 12px; }
-        tr:nth-child(even) { background: #f9f9f9; }
-      </style>
-    </head><body>${pagesHtml}</body></html>`;
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"></head>
+<body style="font-family:Helvetica,Arial,sans-serif;color:#2C2C2C;margin:0;padding:0;">
+${pagesHtml}
+<script>
+(function(){
+  var pages=document.querySelectorAll('div[style*="page-break"]');
+  if(pages.length>0){pages[pages.length-1].style.pageBreakAfter='auto';}
+})();
+</script>
+</body></html>`;
 
     try { await Print.printAsync({ html }); } catch { Alert.alert('Erreur', "Impossible d'exporter en PDF."); }
   };

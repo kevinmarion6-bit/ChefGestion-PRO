@@ -181,180 +181,253 @@ React.useEffect(() => {
       const prix = parseFloat((i.p || '0').replace(',', '.'));
       const qte = parseFloat((i.q || '0').replace(',', '.'));
       const total = prix * qte;
-      return `<tr class="${idx % 2 === 0 ? 'row-even' : 'row-odd'}">
-        <td>${i.d || '—'}</td>
-        <td class="td-center">${i.u}</td>
-        <td class="td-right">${prix.toFixed(3)} €</td>
-        <td class="td-center">${qte.toFixed(3)}</td>
-        <td class="td-gold">${total.toFixed(3)} €</td>
+      return `<tr>
+        <td style="padding:5px 10px;font-size:11px;border-bottom:1px solid #EEE;background-color:${idx % 2 === 0 ? '#FFFFFF' : '#FAFAF7'};">${i.d || '—'}</td>
+        <td style="padding:5px 10px;font-size:11px;border-bottom:1px solid #EEE;text-align:center;color:#555;background-color:${idx % 2 === 0 ? '#FFFFFF' : '#FAFAF7'};">${i.u}</td>
+        <td style="padding:5px 10px;font-size:11px;border-bottom:1px solid #EEE;text-align:right;background-color:${idx % 2 === 0 ? '#FFFFFF' : '#FAFAF7'};">${prix.toFixed(3)} €</td>
+        <td style="padding:5px 10px;font-size:11px;border-bottom:1px solid #EEE;text-align:center;background-color:${idx % 2 === 0 ? '#FFFFFF' : '#FAFAF7'};">${qte.toFixed(3)}</td>
+        <td style="padding:5px 10px;font-size:11px;border-bottom:1px solid #EEE;text-align:right;color:#A07D1C;font-weight:bold;background-color:${idx % 2 === 0 ? '#FFFFFF' : '#FAFAF7'};">${total.toFixed(3)} €</td>
       </tr>`;
     }).join('');
 
+    const stepRows = (fProg || '—').split('\n').filter(l => l.trim()).map((line, i) =>
+      `<tr>
+        <td width="32" style="vertical-align:top;padding:4px 0;">
+          <table cellpadding="0" cellspacing="0" border="0"><tr><td style="background-color:#D4AF37;color:#FFFFFF;font-size:10px;font-weight:bold;width:22px;height:22px;text-align:center;">
+            ${i + 1}
+          </td></tr></table>
+        </td>
+        <td style="font-size:12px;color:#333333;line-height:1.7;padding:4px 0 4px 10px;">${line.trim()}</td>
+      </tr>`
+    ).join('');
+
     const html = `<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="UTF-8">
-  <style>
-    @page { margin: 0; size: A4; }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: Helvetica, Arial, sans-serif; color: #2C2C2C; background: #FFFFFF; }
-    table.layout { border: none; border-collapse: collapse; }
-    table.layout td { border: none; vertical-align: middle; }
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family:Helvetica,Arial,sans-serif;color:#2C2C2C;margin:0;padding:0;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="height:100vh;"><tr><td style="vertical-align:top;">
 
-    .header-bg { background-color: #111111; padding: 20px 40px; }
-    .header-logo { width: 76px; height: 76px; border-radius: 14px; border: 2px solid #D4AF37; }
-    .header-brand { font-size: 14px; letter-spacing: 5px; text-transform: uppercase; color: #D4AF37; padding-bottom: 4px; }
-    .header-restaurant { font-size: 24px; color: #F5F5DC; font-weight: 600; letter-spacing: 1px; }
-    .header-chef { font-size: 14px; color: #F5F5DC; padding-top: 5px; }
-    .header-chef-title { color: #D4AF37; font-weight: 600; }
-    .header-date { font-size: 15px; color: #8A7A60; text-align: right; }
-    .gold-bar { height: 3px; background-color: #D4AF37; }
-
-    .title-section { text-align: center; padding: 14px 40px 0; }
-    .title-box { border: 2px solid #D4AF37; border-radius: 8px; padding: 10px 20px; display: inline-block; }
-    .title-label { font-size: 8px; letter-spacing: 4px; text-transform: uppercase; color: #A07D1C; padding-bottom: 6px; }
-    .title-name { font-size: 26px; color: #1A1A1A; font-weight: 700; letter-spacing: 1px; }
-
-    .kpi-table { width: 100%; padding: 14px 40px; }
-    .kpi-cell { width: 25%; padding: 4px; }
-    .kpi-box { border: 1px solid #E8E0D0; border-radius: 6px; padding: 8px 6px; text-align: center; background-color: #FAFAF7; border-top: 3px solid #D4AF37; }
-    .kpi-label { font-size: 7px; letter-spacing: 2px; text-transform: uppercase; color: #8A7A60; padding-bottom: 4px; }
-    .kpi-value { font-family: Helvetica, Arial, sans-serif; font-size: 20px; color: #A07D1C; font-weight: 700; }
-    .kpi-icon { font-size: 16px; padding-bottom: 4px; }
-
-    .section { padding: 0 40px; margin-bottom: 12px; }
-    .section-head-table { width: 100%; margin-bottom: 10px; }
-    .section-icon { font-size: 16px; width: 26px; }
-    .section-title { font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #1A1A1A; font-weight: 600; white-space: nowrap; padding-right: 10px; }
-    .section-line { border-bottom: 1px solid #D4AF37; }
-
-    table.ingredients { width: 100%; border-collapse: collapse; border: 1px solid #E8E0D0; }
-    table.ingredients thead th { background-color: #111111; color: #D4AF37; padding: 8px 10px; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; font-weight: 700; text-align: left; }
-    table.ingredients thead th:last-child { text-align: right; }
-    table.ingredients td { padding: 5px 10px; font-size: 11px; border-bottom: 1px solid #EEE; }
-    .td-center { text-align: center; color: #555; }
-    .td-right { text-align: right; }
-    .td-gold { text-align: right; color: #A07D1C; font-weight: 700; }
-    .row-even { background-color: #FFFFFF; }
-    .row-odd { background-color: #FAFAF7; }
-    .total-row { background-color: #FBF8F0; border-top: 2px solid #D4AF37; }
-    .total-row td { padding: 10px; font-weight: 700; font-size: 13px; }
-
-    .synth-cell { width: 33.33%; padding: 4px; }
-
-    .progression-box { background-color: #FAFAF7; border: 1px solid #E8E0D0; border-radius: 8px; padding: 14px; }
-    .step-table { width: 100%; }
-    .step-num { background-color: #D4AF37; color: #FFFFFF; font-size: 10px; font-weight: 700; width: 22px; height: 22px; border-radius: 50%; text-align: center; line-height: 22px; }
-    .step-text { font-size: 12px; color: #333; line-height: 1.7; padding-left: 10px; }
-
-    .footer-bg { background-color: #111111; padding: 18px 40px; margin-top: 16px; }
-    .footer-left { font-size: 10px; color: #8A7A60; font-style: italic; }
-    .footer-center { font-size: 10px; letter-spacing: 3px; color: #D4AF37; text-transform: uppercase; text-align: center; }
-    .footer-right { font-size: 10px; color: #8A7A60; text-align: right; }
-  </style>
-</head>
-<body>
-
-  <!-- EN-TÊTE -->
-  <div class="header-bg">
-    <table class="layout" width="100%"><tr>
-      <td width="80"><img src="${logoUrl}" class="header-logo" /></td>
-      <td style="padding-left:24px;">
-        <div class="header-brand">✦ ChefGestion Pro ✦</div>
-        ${restName ? `<div class="header-restaurant">🍽️ ${restName}</div>` : ''}
-        <div class="header-chef">👨‍🍳 &nbsp; <span class="header-chef-title">Chef</span> &nbsp; ${chefName}</div>
-      </td>
-      <td class="header-date">📅 ${today}</td>
-    </tr></table>
-  </div>
-  <div class="gold-bar"></div>
-
-  <!-- TITRE DU PLAT -->
-  <div class="title-section">
-    <div class="title-box">
-      <div class="title-label">📋 Fiche Technique de Production ${year}</div>
-      <div class="title-name">${fNom || 'Sans titre'}</div>
-    </div>
-  </div>
-
-  <!-- KPI CARDS -->
-  <div class="kpi-table">
-    <table class="layout" width="100%"><tr>
-      <td class="kpi-cell"><div class="kpi-box"><div class="kpi-icon">🍽️</div><div class="kpi-label">Nb Portions</div><div class="kpi-value">${fPortions}</div></div></td>
-      <td class="kpi-cell"><div class="kpi-box"><div class="kpi-icon">💰</div><div class="kpi-label">Coût Total HT</div><div class="kpi-value">${fc.total.toFixed(2)}€</div></div></td>
-      <td class="kpi-cell"><div class="kpi-box"><div class="kpi-icon">🏷️</div><div class="kpi-label">Prix / Portion</div><div class="kpi-value">${fc.pp.toFixed(2)}€</div></div></td>
-      <td class="kpi-cell"><div class="kpi-box"><div class="kpi-icon">📊</div><div class="kpi-label">Taux Marge</div><div class="kpi-value">${fc.tm.toFixed(1)}%</div></div></td>
-    </tr></table>
-  </div>
-
-  <!-- TABLEAU INGRÉDIENTS -->
-  <div class="section">
-    <table class="section-head-table layout"><tr>
-      <td class="section-icon">🥘</td>
-      <td class="section-title">Ingrédients & Valorisation</td>
-      <td class="section-line" width="100%"></td>
-    </tr></table>
-
-    <table class="ingredients">
-      <thead><tr>
-        <th>Denrée</th>
-        <th style="text-align:center;">Unité</th>
-        <th style="text-align:right;">Prix Unit. HT</th>
-        <th style="text-align:center;">Quantité</th>
-        <th style="text-align:right;">PR HT</th>
-      </tr></thead>
-      <tbody>
-        ${rows}
-        <tr class="total-row">
-          <td colspan="4" style="text-align:right; color:#1A1A1A;">TOTAL COÛT MATIÈRE HT</td>
-          <td class="td-gold" style="font-size:15px;">${fc.total.toFixed(2)} €</td>
+<!-- EN-TÊTE -->
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#111111;">
+  <tr>
+    <td style="padding:20px 40px;">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td width="80" style="vertical-align:middle;">
+            <img src="${logoUrl}" width="90" height="90" />
+          </td>
+          <td style="padding-left:24px;vertical-align:middle;">
+            <table cellpadding="0" cellspacing="0" border="0">
+              <tr><td style="font-size:14px;letter-spacing:5px;text-transform:uppercase;color:#D4AF37;padding-bottom:4px;">✦ ChefGestion Pro ✦</td></tr>
+              ${restName ? `<tr><td style="font-size:24px;color:#F5F5DC;font-weight:bold;letter-spacing:1px;">🍽️ ${restName}</td></tr>` : ''}
+              <tr><td style="font-size:14px;color:#F5F5DC;padding-top:5px;">👨‍🍳 &nbsp; <span style="color:#D4AF37;font-weight:bold;">Chef</span> &nbsp; ${chefName}</td></tr>
+            </table>
+          </td>
+          <td style="vertical-align:middle;text-align:right;">
+            <span style="font-size:9px;color:#8A7A60;text-transform:uppercase;letter-spacing:1px;">Exporté le</span>
+          <br/><span style="font-size:14px;color:#8A7A60;">📅 ${today}</span>
+          </td>
         </tr>
-      </tbody>
-    </table>
-  </div>
-
-  <!-- SYNTHÈSE FINANCIÈRE -->
-  <div class="section">
-    <table class="section-head-table layout"><tr>
-      <td class="section-icon">💶</td>
-      <td class="section-title">Synthèse Financière</td>
-      <td class="section-line" width="100%"></td>
-    </tr></table>
-
-    <table class="layout" width="100%"><tr>
-      <td class="synth-cell"><div class="kpi-box"><div class="kpi-label">PV HT</div><div class="kpi-value">${fc.pvht.toFixed(2)}€</div></div></td>
-      <td class="synth-cell"><div class="kpi-box"><div class="kpi-label">Marge Brute</div><div class="kpi-value">${fc.mb.toFixed(2)}€</div></div></td>
-      <td class="synth-cell"><div class="kpi-box"><div class="kpi-label">Prix Portion Avec Perte</div><div class="kpi-value">${fc.ppav.toFixed(2)}€</div></div></td>
-    </tr></table>
-  </div>
-
-  <!-- PROGRESSION -->
-  <div class="section">
-    <table class="section-head-table layout"><tr>
-      <td class="section-icon">👨‍🍳</td>
-      <td class="section-title">Progression de la Recette</td>
-      <td class="section-line" width="100%"></td>
-    </tr></table>
-
-    <div class="progression-box">
-      <table class="step-table">
-        ${(fProg || '—').split('\\n').filter(l => l.trim()).map((line, i) =>
-          `<tr><td width="32" style="vertical-align:top;padding:3px 0;"><div class="step-num">${i + 1}</div></td><td class="step-text">${line.trim()}</td></tr>`
-        ).join('')}
       </table>
-    </div>
-  </div>
+    </td>
+  </tr>
+</table>
 
-  <!-- PIED DE PAGE -->
-  <div class="footer-bg">
-    <table class="layout" width="100%"><tr>
-      <td class="footer-left" width="33%">📄 Document généré automatiquement</td>
-      <td class="footer-center" width="34%">✦ ChefGestion Pro ✦</td>
-      <td class="footer-right" width="33%">© ${year} — Tous droits réservés</td>
-    </tr></table>
-  </div>
+<!-- BARRE DORÉE -->
+<table width="100%" cellpadding="0" cellspacing="0" border="0">
+  <tr><td style="height:3px;background-color:#D4AF37;"></td></tr>
+</table>
 
-  <script>(function(){var b=document.body,p=1122;if(b.scrollHeight>p){var s=p/b.scrollHeight;if(s<0.7)s=0.7;b.style.transform='scale('+s+')';b.style.transformOrigin='top left';b.style.width=(100/s)+'%';}})()</script>
+<!-- TITRE DU PLAT -->
+<table width="100%" cellpadding="0" cellspacing="0" border="0">
+  <tr><td style="text-align:center;padding:14px 40px 0;">
+    <table cellpadding="0" cellspacing="0" border="0" align="center" style="border:2px solid #D4AF37;">
+      <tr><td style="padding:10px 20px;text-align:center;">
+        <table cellpadding="0" cellspacing="0" border="0" width="100%">
+          <tr><td style="font-size:8px;letter-spacing:4px;text-transform:uppercase;color:#A07D1C;text-align:center;padding-bottom:6px;">📋 Fiche Technique de Production ${year}</td></tr>
+          <tr><td style="font-size:26px;color:#1A1A1A;font-weight:bold;letter-spacing:1px;text-align:center;">${fNom || 'Sans titre'}</td></tr>
+        </table>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+
+<!-- KPI CARDS -->
+<table width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr><td style="padding:14px 40px;">
+    <table width="100%" cellpadding="4" cellspacing="0" border="0">
+      <tr>
+        <td width="25%" style="vertical-align:top;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E8E0D0;border-top:3px solid #D4AF37;">
+            <tr><td style="text-align:center;padding:8px 6px;background-color:#FAFAF7;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr><td style="font-size:16px;text-align:center;padding-bottom:4px;">🍽️</td></tr>
+                <tr><td style="font-size:7px;letter-spacing:2px;text-transform:uppercase;color:#8A7A60;text-align:center;padding-bottom:4px;">Nb Portions</td></tr>
+                <tr><td style="font-size:20px;color:#A07D1C;font-weight:bold;text-align:center;">${fPortions}</td></tr>
+              </table>
+            </td></tr>
+          </table>
+        </td>
+        <td width="25%" style="vertical-align:top;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E8E0D0;border-top:3px solid #D4AF37;">
+            <tr><td style="text-align:center;padding:8px 6px;background-color:#FAFAF7;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr><td style="font-size:16px;text-align:center;padding-bottom:4px;">💰</td></tr>
+                <tr><td style="font-size:7px;letter-spacing:2px;text-transform:uppercase;color:#8A7A60;text-align:center;padding-bottom:4px;">Coût Total HT</td></tr>
+                <tr><td style="font-size:20px;color:#A07D1C;font-weight:bold;text-align:center;">${fc.total.toFixed(2)}€</td></tr>
+              </table>
+            </td></tr>
+          </table>
+        </td>
+        <td width="25%" style="vertical-align:top;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E8E0D0;border-top:3px solid #D4AF37;">
+            <tr><td style="text-align:center;padding:8px 6px;background-color:#FAFAF7;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr><td style="font-size:16px;text-align:center;padding-bottom:4px;">🏷️</td></tr>
+                <tr><td style="font-size:7px;letter-spacing:2px;text-transform:uppercase;color:#8A7A60;text-align:center;padding-bottom:4px;">Prix / Portion</td></tr>
+                <tr><td style="font-size:20px;color:#A07D1C;font-weight:bold;text-align:center;">${fc.pp.toFixed(2)}€</td></tr>
+              </table>
+            </td></tr>
+          </table>
+        </td>
+        <td width="25%" style="vertical-align:top;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E8E0D0;border-top:3px solid #D4AF37;">
+            <tr><td style="text-align:center;padding:8px 6px;background-color:#FAFAF7;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr><td style="font-size:16px;text-align:center;padding-bottom:4px;">📊</td></tr>
+                <tr><td style="font-size:7px;letter-spacing:2px;text-transform:uppercase;color:#8A7A60;text-align:center;padding-bottom:4px;">Taux Marge</td></tr>
+                <tr><td style="font-size:20px;color:#A07D1C;font-weight:bold;text-align:center;">${fc.tm.toFixed(1)}%</td></tr>
+              </table>
+            </td></tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </td></tr>
+</table>
+
+<!-- SECTION INGRÉDIENTS -->
+<table width="100%" cellpadding="0" cellspacing="0" border="0">
+  <tr><td style="padding:0 40px 12px;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:10px;">
+      <tr>
+        <td width="26" style="font-size:16px;vertical-align:middle;">🥘</td>
+        <td style="font-size:13px;letter-spacing:3px;text-transform:uppercase;color:#1A1A1A;font-weight:bold;vertical-align:middle;white-space:nowrap;padding-right:10px;">Ingrédients &amp; Valorisation</td>
+        <td width="100%" style="vertical-align:middle;"><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-bottom:1px solid #D4AF37;height:1px;"></td></tr></table></td>
+      </tr>
+    </table>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E8E0D0;border-collapse:collapse;">
+      <tr>
+        <th style="background-color:#111111;color:#D4AF37;padding:8px 10px;font-size:9px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;text-align:left;border:1px solid #E8E0D0;">Denrée</th>
+        <th style="background-color:#111111;color:#D4AF37;padding:8px 10px;font-size:9px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;text-align:center;border:1px solid #E8E0D0;">Unité</th>
+        <th style="background-color:#111111;color:#D4AF37;padding:8px 10px;font-size:9px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;text-align:right;border:1px solid #E8E0D0;">Prix Unit. HT</th>
+        <th style="background-color:#111111;color:#D4AF37;padding:8px 10px;font-size:9px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;text-align:center;border:1px solid #E8E0D0;">Quantité</th>
+        <th style="background-color:#111111;color:#D4AF37;padding:8px 10px;font-size:9px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;text-align:right;border:1px solid #E8E0D0;">PR HT</th>
+      </tr>
+      ${rows}
+      <tr>
+        <td colspan="4" style="padding:10px;text-align:right;font-weight:bold;font-size:13px;color:#1A1A1A;border-top:2px solid #D4AF37;background-color:#FBF8F0;">TOTAL COÛT MATIÈRE HT</td>
+        <td style="padding:10px;text-align:right;color:#A07D1C;font-weight:bold;font-size:15px;border-top:2px solid #D4AF37;background-color:#FBF8F0;">${fc.total.toFixed(2)} €</td>
+      </tr>
+    </table>
+  </td></tr>
+</table>
+
+<!-- SECTION SYNTHÈSE FINANCIÈRE -->
+<table width="100%" cellpadding="0" cellspacing="0" border="0">
+  <tr><td style="padding:0 40px 12px;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:10px;">
+      <tr>
+        <td width="26" style="font-size:16px;vertical-align:middle;">💶</td>
+        <td style="font-size:13px;letter-spacing:3px;text-transform:uppercase;color:#1A1A1A;font-weight:bold;vertical-align:middle;white-space:nowrap;padding-right:10px;">Synthèse Financière</td>
+        <td width="100%" style="vertical-align:middle;"><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-bottom:1px solid #D4AF37;height:1px;"></td></tr></table></td>
+      </tr>
+    </table>
+
+    <table width="100%" cellpadding="4" cellspacing="0" border="0">
+      <tr>
+        <td width="33%" style="vertical-align:top;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E8E0D0;border-top:3px solid #D4AF37;">
+            <tr><td style="text-align:center;padding:8px 6px;background-color:#FAFAF7;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr><td style="font-size:7px;letter-spacing:2px;text-transform:uppercase;color:#8A7A60;text-align:center;padding-bottom:4px;">PV HT</td></tr>
+                <tr><td style="font-size:20px;color:#A07D1C;font-weight:bold;text-align:center;">${fc.pvht.toFixed(2)}€</td></tr>
+              </table>
+            </td></tr>
+          </table>
+        </td>
+        <td width="33%" style="vertical-align:top;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E8E0D0;border-top:3px solid #D4AF37;">
+            <tr><td style="text-align:center;padding:8px 6px;background-color:#FAFAF7;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr><td style="font-size:7px;letter-spacing:2px;text-transform:uppercase;color:#8A7A60;text-align:center;padding-bottom:4px;">Marge Brute</td></tr>
+                <tr><td style="font-size:20px;color:#A07D1C;font-weight:bold;text-align:center;">${fc.mb.toFixed(2)}€</td></tr>
+              </table>
+            </td></tr>
+          </table>
+        </td>
+        <td width="34%" style="vertical-align:top;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E8E0D0;border-top:3px solid #D4AF37;">
+            <tr><td style="text-align:center;padding:8px 6px;background-color:#FAFAF7;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr><td style="font-size:7px;letter-spacing:2px;text-transform:uppercase;color:#8A7A60;text-align:center;padding-bottom:4px;">Prix Portion Avec Perte</td></tr>
+                <tr><td style="font-size:20px;color:#A07D1C;font-weight:bold;text-align:center;">${fc.ppav.toFixed(2)}€</td></tr>
+              </table>
+            </td></tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </td></tr>
+</table>
+
+<!-- SECTION PROGRESSION -->
+<table width="100%" cellpadding="0" cellspacing="0" border="0">
+  <tr><td style="padding:0 40px 12px;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:10px;">
+      <tr>
+        <td width="26" style="font-size:16px;vertical-align:middle;">👨‍🍳</td>
+        <td style="font-size:13px;letter-spacing:3px;text-transform:uppercase;color:#1A1A1A;font-weight:bold;vertical-align:middle;white-space:nowrap;padding-right:10px;">Progression de la Recette</td>
+        <td width="100%" style="vertical-align:middle;"><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-bottom:1px solid #D4AF37;height:1px;"></td></tr></table></td>
+      </tr>
+    </table>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E8E0D0;background-color:#FAFAF7;">
+      <tr><td style="padding:14px;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+          ${stepRows}
+        </table>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+
+</td></tr>
+<tr><td style="vertical-align:bottom;">
+<!-- PIED DE PAGE -->
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#111111;">
+  <tr>
+    <td width="33%" style="padding:18px 40px;font-size:10px;color:#8A7A60;font-style:italic;">📄 Document généré automatiquement</td>
+    <td width="34%" style="padding:18px 0;font-size:10px;letter-spacing:3px;color:#D4AF37;text-transform:uppercase;text-align:center;">✦ ChefGestion Pro ✦</td>
+    <td width="33%" style="padding:18px 40px;font-size:10px;color:#8A7A60;text-align:right;">© ${year} — Tous droits réservés</td>
+  </tr>
+</table>
+</td></tr>
+</table>
+
+<script>
+(function(){
+  var b=document.body,p=1122;
+  if(b.scrollHeight>p){
+    var s=p/b.scrollHeight;
+    if(s<0.7)s=0.7;
+    b.style.transform='scale('+s+')';
+    b.style.transformOrigin='top left';
+    b.style.width=(100/s)+'%';
+  }
+})();
+</script>
 </body>
 </html>`;
 
