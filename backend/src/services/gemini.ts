@@ -152,9 +152,10 @@ JSON strict (sans markdown) :
 
   recipes: (style: string, cat: string, products: string) =>
     `Chef expert en cuisine ${style} française.
-Génère 10 idées originales de ${cat} avec ces produits disponibles : ${products}.
+Génère 8 idées originales de ${cat} avec ces produits disponibles : ${products}.
+Descriptions très courtes (1 phrase max). Noms concis.
 JSON strict (sans markdown) :
-{"recettes":[{"nom":"","description":"","ingredients_principaux":[],"difficulte":"Facile|Moyen|Difficile","temps_preparation":"","suggestion_prix":0}]}`,
+{"recettes":[{"nom":"","description":"","ingredients_principaux":[],"temps_preparation":"","suggestion_prix":0}]}`,
 };
 
 // ─── HELPERS ─────────────────────────────────────────────
