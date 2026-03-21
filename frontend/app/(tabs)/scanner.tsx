@@ -8,6 +8,7 @@ import { Scan } from '@/lib/api';
 import { useApp } from '@/lib/context';
 import { getToken } from '@/lib/auth';
 import { useNavigation } from '@react-navigation/native';
+import { scheduleDlcNotification, cancelDlcNotifications } from '@/lib/notifications';
 
 const C = {
   blackS: '#0C0C0C', charcoal: '#1A1A1A',
@@ -472,6 +473,12 @@ function ScanResult({ result }: { result: any }) {
     async function toggleDlc(newActive: boolean) {
       if (!photoId) return;
       setDlcActive(newActive);
+      // Planifier ou annuler les notifications
+      if (newActive && label?.dlc) {
+        scheduleDlcNotification(photoId, label?.nom || 'Produit', label.dlc);
+      } else if (photoId) {
+        cancelDlcNotifications(photoId);
+      }
       try {
         const token = await getToken();
         fetch(`https://chefgestion-pro.onrender.com/api/haccp/photos/${photoId}/toggle-dlc`, {

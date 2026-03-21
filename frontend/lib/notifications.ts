@@ -206,6 +206,80 @@ export async function savePushPreference(enabled: boolean): Promise<void> {
   }
 }
 
+// ─── NOTIFICATIONS DLC ───────────────────────────────────
+
+export async function scheduleDlcNotification(photoId: string, productName: string, dlcDate: string): Promise<void> {
+  if (!Notifications) return;
+
+  const dlc = new Date(dlcDate);
+  if (isNaN(dlc.getTime())) return;
+
+  const now = new Date();
+
+  // J-3 MIDI (11h)
+  const j3 = new Date(dlc);
+  j3.setDate(j3.getDate() - 3);
+  j3.setHours(11, 0, 0, 0);
+
+  // J-3 SOIR (18h)
+  const j3soir = new Date(dlc);
+  j3soir.setDate(j3soir.getDate() - 3);
+  j3soir.setHours(18, 0, 0, 0);
+
+  // J-0 MIDI (11h)
+  const j0 = new Date(dlc);
+  j0.setHours(11, 0, 0, 0);
+
+  // J-0 SOIR (18h)
+  const j0soir = new Date(dlc);
+  j0soir.setHours(18, 0, 0, 0);
+
+  const notifications = [
+    { id: `dlc-j3-midi-${photoId}`, date: j3, title: `🏷️ ${productName}`, body: 'Expire dans 3 jours' },
+    { id: `dlc-j3-soir-${photoId}`, date: j3soir, title: `🏷️ ${productName}`, body: 'Expire dans 3 jours' },
+    { id: `dlc-j0-midi-${photoId}`, date: j0, title: `🔴 ${productName}`, body: 'Expire AUJOURD\'HUI !' },
+    { id: `dlc-j0-soir-${photoId}`, date: j0soir, title: `🔴 ${productName}`, body: 'Expire AUJOURD\'HUI !' },
+  ];
+
+  for (const notif of notifications) {
+    if (notif.date > now) {
+      try {
+        await Notifications.scheduleNotificationAsync({
+          identifier: notif.id,
+          content: {
+            title: notif.title,
+            body: notif.body,
+            sound: 'default',
+            data: { screen: 'haccp', photoId },
+          },
+          trigger: { date: notif.date },
+        });
+        console.log(`[DLC Notif] Planifiée: ${notif.id} pour ${notif.date.toLocaleString()}`);
+      } catch (err) {
+        console.error(`[DLC Notif] Erreur planification ${notif.id}:`, err);
+      }
+    }
+  }
+}
+
+export async function cancelDlcNotifications(photoId: string): Promise<void> {
+  if (!Notifications) return;
+
+  const ids = [
+    `dlc-j3-midi-${photoId}`,
+    `dlc-j3-soir-${photoId}`,
+    `dlc-j0-midi-${photoId}`,
+    `dlc-j0-soir-${photoId}`,
+  ];
+
+  for (const id of ids) {
+    try {
+      await Notifications.cancelScheduledNotificationAsync(id);
+    } catch {}
+  }
+  console.log(`[DLC Notif] Annulées pour photo ${photoId}`);
+}
+
 // ─── CHARGER LE CHOIX SAUVEGARDÉ ─────────────────────────
 
 export async function loadPushPreference(): Promise<boolean> {

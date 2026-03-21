@@ -8,6 +8,7 @@ import { Archives } from '@/lib/api';
 import { loadPushPreference, savePushPreference } from '@/lib/notifications';
 import { Modal } from 'react-native';
 import { getToken } from '@/lib/auth';
+import { useNavigation } from '@react-navigation/native';
 
 const C = { black: '#000', blackS: '#0C0C0C', charcoal: '#1A1A1A', gold: '#D4AF37', goldL: '#EAD06A', goldD: '#A07D1C', bronze: '#CD7F32', cream: '#F5F5DC', creamD: '#EDE8D0', muted: '#6B6050', mutedL: '#8A7A60', ok: '#4ADE80', warn: '#FACC15', bad: '#F87171', blue: '#60A5FA' };
 
@@ -38,6 +39,15 @@ export default function DashboardScreen() {
     }
   }).catch(() => {});
 }, []);
+
+const navigation = useNavigation();
+  
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      refreshDashboard();
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   // Données nouvelles depuis le dashboard enrichi
   const tempAlerts = (dashboard as any)?.tempAlerts ?? [];

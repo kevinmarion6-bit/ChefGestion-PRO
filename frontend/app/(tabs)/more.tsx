@@ -9,6 +9,7 @@ import { Card, Btn, ListItem, Empty, SectionTitle } from '@/components/UI';
 import { useApp } from '@/lib/context';
 import { Auth, Dashboard, Restaurant, Fiches, PhotoArchives } from '@/lib/api';
 import { getToken } from '@/lib/auth';
+import { scheduleDlcNotification, cancelDlcNotifications } from '@/lib/notifications';
 
 function formatDLC(dateStr: string | null): string {
   if (!dateStr) return '';
@@ -1346,6 +1347,12 @@ function HaccpPage({ goBack, state, addHaccpPhoto, refreshDashboard }: any) {
                           const newActive = !p.dlc_active;
                           // Mise à jour immédiate (optimiste)
                           setPhotos(photos.map((ph: any) => ph.id === p.id ? { ...ph, dlc_active: newActive } : ph));
+                          // Planifier ou annuler les notifications DLC
+                          if (newActive && p.dlc_date) {
+                            scheduleDlcNotification(p.id, p.name || 'Produit', p.dlc_date);
+                          } else {
+                            cancelDlcNotifications(p.id);
+                          }
                           // Sync serveur en arrière-plan
                           try {
                             const token = await getToken();
@@ -1354,11 +1361,13 @@ function HaccpPage({ goBack, state, addHaccpPhoto, refreshDashboard }: any) {
                               headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
                               body: JSON.stringify({ active: newActive }),
                             }).then(() => {
-                              // Refresh dashboard en arrière-plan
                               refreshDashboard?.();
                             }).catch(() => {
                               // Revert si échec
                               setPhotos(prev => prev.map((ph: any) => ph.id === p.id ? { ...ph, dlc_active: !newActive } : ph));
+                              // Revert notifications
+                              if (newActive) cancelDlcNotifications(p.id);
+                              else if (p.dlc_date) scheduleDlcNotification(p.id, p.name || 'Produit', p.dlc_date);
                               Alert.alert('Erreur', 'Impossible de modifier l\'alerte.');
                             });
                           } catch {}
@@ -1528,6 +1537,11 @@ function HaccpPage({ goBack, state, addHaccpPhoto, refreshDashboard }: any) {
                   const newActive = !selectedPhoto.dlc_active;
                   setSelectedPhoto({ ...selectedPhoto, dlc_active: newActive });
                   setPhotos(photos.map((ph: any) => ph.id === selectedPhoto.id ? { ...ph, dlc_active: newActive } : ph));
+                  if (newActive && selectedPhoto.dlc_date) {
+                    scheduleDlcNotification(selectedPhoto.id, selectedPhoto.name || 'Produit', selectedPhoto.dlc_date);
+                  } else {
+                    cancelDlcNotifications(selectedPhoto.id);
+                  }
                   try {
                     const token = await getToken();
                     fetch(`https://chefgestion-pro.onrender.com/api/haccp/photos/${selectedPhoto.id}/toggle-dlc`, {
