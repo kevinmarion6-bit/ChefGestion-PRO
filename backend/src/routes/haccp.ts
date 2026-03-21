@@ -157,17 +157,24 @@ router.post('/photos/:id/toggle-dlc', requireAuth, async (req: AuthRequest, res:
     await supabase.from('haccp_photos').update({ dlc_active: active }).eq('id', photoId);
 
     if (active && photo.dlc_date) {
-      // Créer l'alerte DLC
-      await supabase.from('dlc_products').upsert({
+      // Supprimer d'abord si existe
+      await supabase.from('dlc_products').delete().eq('photo_id', photoId);
+      // Puis insérer
+      const { error: insertErr } = await supabase.from('dlc_products').insert({
         user_id: userId,
         nom: photo.dlc_nom || photo.name || 'Produit',
         dlc: photo.dlc_date,
-        lot: '',
+        lot: photo.lot || '',
         photo_id: photoId,
-      }, { onConflict: 'photo_id' });
+      });
+      if (insertErr) {
+        console.error('[toggle-dlc] Insert error:', insertErr);
+        res.status(500).json({ ok: false, error: insertErr.message });
+        return;
+      }
     } else {
-      // Supprimer l'alerte DLC
-      await supabase.from('dlc_products').delete().eq('photo_id', photoId);
+      const { error: delErr } = await supabase.from('dlc_products').delete().eq('photo_id', photoId);
+      if (delErr) console.error('[toggle-dlc] Delete error:', delErr);
     }
 
     res.json({ ok: true });
