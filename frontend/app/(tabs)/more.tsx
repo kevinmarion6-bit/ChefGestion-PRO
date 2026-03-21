@@ -1000,8 +1000,7 @@ function SuppliersPage({ goBack }: any) {
               const totalProducts = Object.values(suppliers).reduce((sum: number, d: any) => sum + (d.products?.length || 0), 0);
 
               const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
-<body style="font-family:Helvetica,Arial,sans-serif;color:#2C2C2C;margin:0;padding:0;">
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="height:1122px;"><tr><td style="vertical-align:top;">
+<body style="font-family:Helvetica,Arial,sans-serif;color:#2C2C2C;margin:0;padding:0;padding-bottom:60px;">
 
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#111;">
   <tr><td style="padding:14px 40px;">
@@ -1063,16 +1062,12 @@ function SuppliersPage({ goBack }: any) {
   </td></tr>
 </table>
 
-</td></tr>
-<tr><td style="vertical-align:bottom;">
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#111;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#111;position:fixed;bottom:0;left:0;right:0;">
   <tr>
     <td width="33%" style="padding:14px 40px;font-size:10px;color:#8A7A60;font-style:italic;">📄 Document généré automatiquement</td>
     <td width="34%" style="padding:14px 0;font-size:10px;letter-spacing:3px;color:#D4AF37;text-transform:uppercase;text-align:center;">✦ ChefGestion Pro ✦</td>
     <td width="33%" style="padding:14px 40px;font-size:10px;color:#8A7A60;text-align:right;">© ${year} — Tous droits réservés</td>
   </tr>
-</table>
-</td></tr>
 </table>
 </body></html>`;
 
@@ -1451,10 +1446,9 @@ function HaccpPage({ goBack, state, addHaccpPhoto, refreshDashboard }: any) {
                   <td style="padding:8px 10px;border-bottom:1px solid #EEE;background-color:${bgColor};font-size:11px;color:#888;">${p.date || '—'}</td>
                 </tr>`;
               }).join('');
-
+              
               const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
-<body style="font-family:Helvetica,Arial,sans-serif;color:#2C2C2C;margin:0;padding:0;">
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="height:1122px;"><tr><td style="vertical-align:top;">
+<body style="font-family:Helvetica,Arial,sans-serif;color:#2C2C2C;margin:0;padding:0;padding-bottom:60px;">
 
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#111;">
   <tr><td style="padding:14px 40px;">
@@ -1516,18 +1510,13 @@ function HaccpPage({ goBack, state, addHaccpPhoto, refreshDashboard }: any) {
   </td></tr>
 </table>
 
-</td></tr>
-<tr><td style="vertical-align:bottom;">
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#111;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#111;position:fixed;bottom:0;left:0;right:0;">
   <tr>
     <td width="33%" style="padding:14px 40px;font-size:10px;color:#8A7A60;font-style:italic;">📄 Document généré automatiquement</td>
     <td width="34%" style="padding:14px 0;font-size:10px;letter-spacing:3px;color:#D4AF37;text-transform:uppercase;text-align:center;">✦ ChefGestion Pro ✦</td>
     <td width="33%" style="padding:14px 40px;font-size:10px;color:#8A7A60;text-align:right;">© ${year} — Tous droits réservés</td>
   </tr>
 </table>
-</td></tr>
-</table>
-
 </body></html>`;
 
               await Print.printAsync({ html });
