@@ -1326,7 +1326,8 @@ function HaccpPage({ goBack, state, addHaccpPhoto }: any) {
                   <View style={{ padding: 8 }}>
                     <Text style={styles.photoName} numberOfLines={1}>{p.name}</Text>
                     {p.date && <Text style={{ fontSize: 10, color: Colors.muted }}>{p.date}</Text>}
-                    {p.dlc_date && (
+                    {p.lot ? <Text style={{ fontSize: 9, color: Colors.muted, fontStyle: 'italic' }}>Lot : {p.lot}</Text> : null}
+                    {p.dlc_date ? (
                       <TouchableOpacity
                         style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}
                         onPress={async (e) => {
@@ -1358,7 +1359,7 @@ function HaccpPage({ goBack, state, addHaccpPhoto }: any) {
                           DLC {p.dlc_date}
                         </Text>
                       </TouchableOpacity>
-                    )}
+                    ) : null}
                   </View>
                 </TouchableOpacity>
               ))}
@@ -1493,6 +1494,12 @@ function HaccpPage({ goBack, state, addHaccpPhoto }: any) {
             )}
             {selectedPhoto?.date && (
               <Text style={{ color: '#6B6050', fontSize: 12, marginTop: 4 }}>{selectedPhoto.date}</Text>
+            )}
+            {selectedPhoto?.dlc_date && (
+              <Text style={{ color: '#D4AF37', fontSize: 13, marginTop: 6 }}>📅 DLC : {selectedPhoto.dlc_date}</Text>
+            )}
+            {selectedPhoto?.lot && (
+              <Text style={{ color: '#6B6050', fontSize: 11, marginTop: 2 }}>Lot : {selectedPhoto.lot}</Text>
             )}
             <TouchableOpacity
               style={{ marginTop: 24, backgroundColor: 'rgba(248,113,113,0.15)', borderWidth: 1, borderColor: '#F87171', borderRadius: 10, paddingVertical: 12, paddingHorizontal: 30 }}

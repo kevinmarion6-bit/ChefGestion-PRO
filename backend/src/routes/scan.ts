@@ -511,6 +511,7 @@ Si la DLC n'est pas lisible, mets null pour dlc.`;
         dlc_date: data.dlc || null,
         dlc_nom: data.nom || null,
         dlc_active: false,
+        lot: data.lot || null,
       });
  
     res.json({
