@@ -93,13 +93,37 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
         .lte('dlc', threeDaysStr)
         .gte('dlc', today)
         .order('dlc', { ascending: true });
-      dlcAlerts = (dlcProducts ?? []).map(p => ({
-        id: p.id,
-        nom: p.nom,
-        dlc: p.dlc,
-        lot: p.lot || '',
-        photo_id: p.photo_id || null,
-        joursRestants: Math.ceil((new Date(p.dlc).getTime() - new Date(today).getTime()) / (1000 * 60 * 60 * 24)),
+      dlcAlerts = await Promise.all((dlcProducts ?? []).map(async p => {
+        let photo_uri = null;
+        let photo_name = null;
+        let dlc_date = p.dlc;
+        let lot = p.lot || '';
+        if (p.photo_id) {
+          const { data: photo } = await supabase
+            .from('haccp_photos')
+            .select('name, storage_path, dlc_date, dlc_active, lot')
+            .eq('id', p.photo_id)
+            .single();
+          if (photo?.storage_path) {
+            const { data: signed } = await supabase.storage
+              .from('haccp-photos')
+              .createSignedUrl(photo.storage_path, 3600);
+            photo_uri = signed?.signedUrl ?? null;
+          }
+          photo_name = photo?.name || null;
+          lot = photo?.lot || lot;
+        }
+        return {
+          id: p.id,
+          nom: p.nom,
+          dlc: p.dlc,
+          lot,
+          photo_id: p.photo_id || null,
+          photo_uri,
+          photo_name,
+          dlc_active: true,
+          joursRestants: Math.ceil((new Date(p.dlc).getTime() - new Date(today).getTime()) / (1000 * 60 * 60 * 24)),
+        };
       }));
     } catch (e) {
       // Table peut ne pas encore exister
