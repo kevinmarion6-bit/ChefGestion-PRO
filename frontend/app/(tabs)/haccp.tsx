@@ -365,7 +365,7 @@ async function generateCurrentArchive() {
 <!-- PIED DE PAGE -->
 </td></tr>
 <tr><td style="vertical-align:bottom;">
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="height:100vh;"><tr><td style="vertical-align:top;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="height:1122px;"><tr><td style="vertical-align:top;">
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#111111;">
   <tr>
     <td width="33%" style="padding:14px 40px;font-size:10px;color:#8A7A60;font-style:italic;">📄 Document généré automatiquement</td>

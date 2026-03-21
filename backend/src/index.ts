@@ -20,6 +20,7 @@ import archivesRouter   from './routes/archives';
 import fichesRouter     from './routes/fiches';
 import photoArchivesRouter from './routes/photoArchives';
 import { runArchiveCron, runIncompleteMonthNotification } from './services/archiveGenerator';
+import ratioArchivesRouter from './routes/ratioArchives';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3001', 10);
@@ -44,6 +45,8 @@ app.use('/api/settings',   settingsRouter);
 app.use('/api/archives',   archivesRouter);
 app.use('/api/fiches',     fichesRouter);
 app.use('/api/photo-archives', photoArchivesRouter);
+app.use('/api/ratio-archives', ratioArchivesRouter);
+
 
 // ─── HEALTH CHECK ────────────────────────────────────────
 app.get('/api/health', async (_req, res) => {

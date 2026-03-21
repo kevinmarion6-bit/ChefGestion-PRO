@@ -7,7 +7,7 @@ import { router } from 'expo-router';
 import { Colors, Spacing, Radius } from '@/constants/Theme';
 import { Card, Btn, ListItem, Empty, SectionTitle } from '@/components/UI';
 import { useApp } from '@/lib/context';
-import { Auth, Dashboard, Restaurant, Fiches, PhotoArchives } from '@/lib/api';
+import { Auth, Dashboard, Restaurant, Fiches, PhotoArchives, RatioArchives } from '@/lib/api';
 import { getToken } from '@/lib/auth';
 import { scheduleDlcNotification, cancelDlcNotifications } from '@/lib/notifications';
 
@@ -25,7 +25,7 @@ declare global {
   var __editFiche: any;
 }
 
-type SubPage = null | 'suppliers' | 'haccp' | 'settings' | 'restaurant' | 'fiches';
+type SubPage = null | 'suppliers' | 'haccp' | 'settings' | 'restaurant' | 'fiches' | 'ratios';
 
 // ═════════════════════════════════════════════════════════════
 // ─── FICHES TECHNIQUES ──────────────────────────────────────
@@ -321,6 +321,105 @@ function FichesPage({ goBack }: { goBack: () => void }) {
     </SafeAreaView>
   );
 }
+
+// ═════════════════════════════════════════════════════════════
+// ─── RATIOS & INDICATEURS FINANCIERS ────────────────────────
+// ═════════════════════════════════════════════════════════════
+
+function RatiosArchivePage({ goBack }: { goBack: () => void }) {
+  const [archives, setArchives] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { loadArchives(); }, []);
+
+  async function loadArchives() {
+    setLoading(true);
+    try {
+      const data = await RatioArchives.list();
+      setArchives(data ?? []);
+    } catch (err) {
+      console.error('[RatioArchives]', err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function generateArchive() {
+    const now = new Date();
+    const prevMonth = now.getMonth();
+    const prevYear = prevMonth === 0 ? now.getFullYear() - 1 : now.getFullYear();
+    const prevMonthNum = prevMonth === 0 ? 12 : prevMonth;
+    try {
+      await RatioArchives.generate(prevYear, prevMonthNum);
+      Alert.alert('✅ Succès', 'Archive ratios générée !');
+      loadArchives();
+    } catch (err: any) {
+      Alert.alert('Erreur', err?.message || 'Impossible de générer.');
+    }
+  }
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.headerSub2}>
+        <TouchableOpacity onPress={goBack} style={styles.backBtn}><Text style={styles.backArrow}>‹</Text></TouchableOpacity>
+        <View><Text style={styles.headerTitle}>Ratios & Indicateurs</Text><Text style={styles.subTxt}>Archives financières mensuelles</Text></View>
+      </View>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+        <TouchableOpacity
+          style={{ backgroundColor: 'rgba(212,175,55,0.1)', borderWidth: 1, borderColor: Colors.gold, borderRadius: 10, padding: 14, alignItems: 'center', marginBottom: 16 }}
+          onPress={generateArchive}
+        >
+          <Text style={{ color: Colors.gold, fontSize: 12, fontFamily: 'Cinzel_700Bold', letterSpacing: 1 }}>
+            📊 ARCHIVER LE MOIS PRÉCÉDENT
+          </Text>
+        </TouchableOpacity>
+
+        {loading ? (
+          <ActivityIndicator color={Colors.gold} style={{ marginTop: 20 }} />
+        ) : archives.length === 0 ? (
+          <Empty icon="📊" text={"Aucune archive disponible\nArchivez votre premier mois ci-dessus"} />
+        ) : (
+          archives.map((a: any) => (
+            <Card key={a.id} style={{ marginBottom: 10 }}>
+              <View style={{ padding: 14 }}>
+                {a.is_expiring_soon && (
+                  <View style={{ backgroundColor: 'rgba(248,113,113,0.1)', borderRadius: 6, padding: 8, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={{ fontSize: 12 }}>⚠️</Text>
+                    <Text style={{ color: '#F87171', fontSize: 10, fontWeight: 'bold' }}>
+                      EXPIRE DANS {a.days_until_expiry} JOUR{a.days_until_expiry > 1 ? 'S' : ''}
+                    </Text>
+                  </View>
+                )}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: Colors.cream, fontSize: 14, fontFamily: 'Cinzel_400Regular', textTransform: 'capitalize' }}>
+                      📅 {a.month_label}
+                    </Text>
+                    <Text style={{ color: Colors.muted, fontSize: 10, marginTop: 4 }}>📦 {a.file_size} KB</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={{ backgroundColor: Colors.gold, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 }}
+                    onPress={async () => {
+                      if (!a.download_url) return;
+                      try {
+                        const response = await fetch(a.download_url);
+                        const html = await response.text();
+                        await Print.printAsync({ html });
+                      } catch { Alert.alert('Erreur', 'Impossible de générer le PDF.'); }
+                    }}
+                  >
+                    <Text style={{ color: '#000', fontSize: 11, fontWeight: 'bold' }}>📥 PDF</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </Card>
+          ))
+        )}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
 export default function MoreScreen() {
   const [sub, setSub] = useState<SubPage>(null);
   const { user, state, addHaccpPhoto, clearAllData, logout, refreshDashboard } = useApp();
@@ -337,7 +436,8 @@ export default function MoreScreen() {
   if (sub === 'settings')   return <SettingsPage goBack={goBack} clearAllData={clearAllData} />;
   if (sub === 'restaurant') return <RestaurantPage goBack={goBack} />;
   if (sub === 'fiches') return <FichesPage goBack={goBack} />;
-
+  if (sub === 'ratios') return <RatiosArchivePage goBack={goBack} />;
+  
   return (
     <SafeAreaView style={styles.safe}>
       <View style={[styles.header, { flexDirection: 'row', alignItems: 'center' }]}>
@@ -360,6 +460,7 @@ export default function MoreScreen() {
           <ListItem icon="⚙️" title="Paramètres" subtitle="Compte & données" onPress={() => goSub('settings')} />
           <ListItem icon="🍽️" title="Restaurant" subtitle="Session collaborative & équipe" onPress={() => goSub('restaurant')} />
           <ListItem icon="📋" title="Répertoire de Fiches Techniques" subtitle="Vos recettes sauvegardées" onPress={() => goSub('fiches')} />
+          <ListItem icon="📊" title="Ratios & Indicateurs Financiers" subtitle="Archives mensuelles & export PDF" onPress={() => goSub('ratios')} />
         </Card>
 
         <SectionTitle>Mon compte</SectionTitle>
@@ -864,7 +965,125 @@ function SuppliersPage({ goBack }: any) {
           <TextInput style={[styles.addInput, { flex: 1 }]} value={name} onChangeText={setName} placeholder="Nom du fournisseur..." placeholderTextColor={Colors.muted} onSubmitEditing={handleAdd} />
           <Btn label={adding ? '...' : '+'} onPress={handleAdd} style={{ paddingHorizontal: 20 }} />
         </View>
+<TouchableOpacity
+          style={{ backgroundColor: 'rgba(212,175,55,0.08)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)', borderRadius: 10, paddingVertical: 10, alignItems: 'center', marginBottom: 12 }}
+          onPress={async () => {
+            if (Object.keys(suppliers).length === 0) { Alert.alert('Aucun fournisseur', 'Scannez des factures pour remplir votre mercuriale.'); return; }
+            try {
+              let restName = '';
+              let chefName = 'Le Chef';
+              try { const r = await Restaurant.get(); if (r?.nom) restName = r.nom; } catch {}
+              try { const me = await Auth.me(); if (me?.name) chefName = me.name; } catch {}
 
+              const logoUrl = 'https://osnckjlgqqawcgduideb.supabase.co/storage/v1/object/public/assets/logo.png';
+              const exportDate = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+              const year = new Date().getFullYear();
+              const currentHour = new Date().getHours();
+              const currentService = (currentHour >= 2 && currentHour < 16) ? 'MIDI' : 'SOIR';
+
+              let supplierRows = '';
+              Object.entries(suppliers).forEach(([sup, d]: any) => {
+                const products = d.products ?? [];
+                supplierRows += `
+                <tr><td colspan="4" style="background-color:#111;color:#D4AF37;padding:10px;font-size:12px;font-weight:bold;letter-spacing:2px;">🏭 ${sup} (${products.length} produit${products.length > 1 ? 's' : ''})</td></tr>`;
+                products.forEach((p: any, idx: number) => {
+                  const bgColor = idx % 2 === 0 ? '#FFFFFF' : '#FAFAF7';
+                  supplierRows += `<tr>
+                    <td style="padding:6px 10px;border-bottom:1px solid #EEE;background-color:${bgColor};font-size:12px;color:#333;">${p.name || '—'}</td>
+                    <td style="padding:6px 10px;border-bottom:1px solid #EEE;background-color:${bgColor};font-size:11px;color:#888;text-align:center;">${p.unit || 'u'}</td>
+                    <td style="padding:6px 10px;border-bottom:1px solid #EEE;background-color:${bgColor};font-size:12px;color:#A07D1C;font-weight:bold;text-align:right;">${(p.price || 0).toFixed(2)} €</td>
+                    <td style="padding:6px 10px;border-bottom:1px solid #EEE;background-color:${bgColor};font-size:10px;color:#888;text-align:center;">${p.updated_at ? new Date(p.updated_at).toLocaleDateString('fr-FR') : '—'}</td>
+                  </tr>`;
+                });
+              });
+
+              const totalProducts = Object.values(suppliers).reduce((sum: number, d: any) => sum + (d.products?.length || 0), 0);
+
+              const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
+<body style="font-family:Helvetica,Arial,sans-serif;color:#2C2C2C;margin:0;padding:0;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="height:1122px;"><tr><td style="vertical-align:top;">
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#111;">
+  <tr><td style="padding:14px 40px;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        <td width="90" style="vertical-align:middle;"><img src="${logoUrl}" width="90" height="90" /></td>
+        <td style="padding-left:24px;vertical-align:middle;">
+          <table cellpadding="0" cellspacing="0" border="0">
+            <tr><td style="font-size:14px;letter-spacing:5px;text-transform:uppercase;color:#D4AF37;padding-bottom:4px;">✦ ChefGestion Pro ✦</td></tr>
+            ${restName ? `<tr><td style="font-size:24px;color:#F5F5DC;font-weight:bold;">🍽️ ${restName}</td></tr>` : ''}
+            <tr><td style="font-size:14px;color:#F5F5DC;padding-top:5px;">👨‍🍳 &nbsp; <span style="color:#D4AF37;font-weight:bold;">Chef</span> &nbsp; ${chefName}</td></tr>
+          </table>
+        </td>
+        <td style="vertical-align:middle;text-align:right;">
+          <span style="font-size:9px;color:#8A7A60;text-transform:uppercase;letter-spacing:1px;">Exporté le</span>
+          <br/><span style="font-size:14px;color:#8A7A60;">📅 ${exportDate}</span>
+          <br/><span style="font-size:11px;color:#D4AF37;">Service ${currentService}</span>
+        </td>
+      </tr>
+    </table>
+  </td></tr>
+</table>
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="height:3px;background-color:#D4AF37;"></td></tr></table>
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0">
+  <tr><td style="text-align:center;padding:10px 40px 0;">
+    <table cellpadding="0" cellspacing="0" border="0" align="center" style="border:2px solid #D4AF37;">
+      <tr><td style="padding:10px 20px;text-align:center;">
+        <table cellpadding="0" cellspacing="0" border="0" width="100%">
+          <tr><td style="font-size:8px;letter-spacing:4px;text-transform:uppercase;color:#A07D1C;text-align:center;padding-bottom:6px;">🏭 Mercuriale Fournisseurs</td></tr>
+          <tr><td style="font-size:22px;color:#1A1A1A;font-weight:bold;text-align:center;">${Object.keys(suppliers).length} Fournisseur${Object.keys(suppliers).length > 1 ? 's' : ''}</td></tr>
+          <tr><td style="font-size:11px;color:#8A7A60;text-align:center;padding-top:4px;">${totalProducts} produit${totalProducts > 1 ? 's' : ''} référencé${totalProducts > 1 ? 's' : ''}</td></tr>
+        </table>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0">
+  <tr><td style="padding:12px 40px 8px;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:8px;">
+      <tr>
+        <td width="26" style="font-size:16px;vertical-align:middle;">📋</td>
+        <td style="font-size:13px;letter-spacing:3px;text-transform:uppercase;color:#1A1A1A;font-weight:bold;vertical-align:middle;white-space:nowrap;padding-right:10px;">Détail par fournisseur</td>
+        <td width="100%" style="vertical-align:middle;"><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-bottom:1px solid #D4AF37;height:1px;"></td></tr></table></td>
+      </tr>
+    </table>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E8E0D0;border-collapse:collapse;">
+      <tr>
+        <th style="background-color:#111;color:#D4AF37;padding:6px 10px;font-size:9px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;text-align:left;border:1px solid #E8E0D0;">Produit</th>
+        <th style="background-color:#111;color:#D4AF37;padding:6px 10px;font-size:9px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;text-align:center;border:1px solid #E8E0D0;">Unité</th>
+        <th style="background-color:#111;color:#D4AF37;padding:6px 10px;font-size:9px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;text-align:right;border:1px solid #E8E0D0;">Prix HT</th>
+        <th style="background-color:#111;color:#D4AF37;padding:6px 10px;font-size:9px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;text-align:center;border:1px solid #E8E0D0;">Màj</th>
+      </tr>
+      ${supplierRows}
+    </table>
+  </td></tr>
+</table>
+
+</td></tr>
+<tr><td style="vertical-align:bottom;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#111;">
+  <tr>
+    <td width="33%" style="padding:14px 40px;font-size:10px;color:#8A7A60;font-style:italic;">📄 Document généré automatiquement</td>
+    <td width="34%" style="padding:14px 0;font-size:10px;letter-spacing:3px;color:#D4AF37;text-transform:uppercase;text-align:center;">✦ ChefGestion Pro ✦</td>
+    <td width="33%" style="padding:14px 40px;font-size:10px;color:#8A7A60;text-align:right;">© ${year} — Tous droits réservés</td>
+  </tr>
+</table>
+</td></tr>
+</table>
+</body></html>`;
+
+              await Print.printAsync({ html });
+            } catch {
+              Alert.alert('Erreur', 'Impossible de générer le PDF.');
+            }
+          }}
+        >
+          <Text style={{ color: Colors.gold, fontSize: 11, fontWeight: 'bold' }}>📄 Exporter la Mercuriale (PDF)</Text>
+        </TouchableOpacity>
         <SectionTitle>Mes Fournisseurs</SectionTitle>
         {loading ? (
           <ActivityIndicator color={Colors.gold} style={{ marginTop: 20 }} />
@@ -1235,7 +1454,7 @@ function HaccpPage({ goBack, state, addHaccpPhoto, refreshDashboard }: any) {
 
               const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
 <body style="font-family:Helvetica,Arial,sans-serif;color:#2C2C2C;margin:0;padding:0;">
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="height:100vh;"><tr><td style="vertical-align:top;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="height:1122px;"><tr><td style="vertical-align:top;">
 
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#111;">
   <tr><td style="padding:14px 40px;">

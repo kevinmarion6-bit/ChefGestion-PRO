@@ -137,19 +137,16 @@ const navigation = useNavigation();
             ) : (
               dlcAlerts.slice(0, 3).map((a: any, i: number) => (
                 <TouchableOpacity key={i} style={s.alertTempRow} activeOpacity={0.6}
-                  onPress={async () => {
-                    if (!a.photo_id) return;
-                    try {
-                      const token = await getToken();
-                      const res = await fetch(`https://chefgestion-pro.onrender.com/api/haccp/photos`, {
-                        headers: { Authorization: `Bearer ${token}` },
-                      });
-                      const json = await res.json();
-                      if (json.ok) {
-                        const photo = json.data.find((p: any) => p.id === a.photo_id);
-                        if (photo) setDlcPhoto(photo);
-                      }
-                    } catch {}
+                  onPress={() => {
+                    if (!a.photo_uri) return;
+                    setDlcPhoto({
+                      id: a.photo_id,
+                      uri: a.photo_uri,
+                      name: a.photo_name || a.nom,
+                      dlc_date: a.dlc,
+                      dlc_active: true,
+                      lot: a.lot,
+                    });
                   }}
                 >
                   <Text style={{ fontSize: 12 }}>
@@ -345,16 +342,55 @@ const navigation = useNavigation();
               <Text style={{ color: '#FFF', fontSize: 20, fontWeight: 'bold' }}>✕</Text>
             </TouchableOpacity>
             {dlcPhoto?.uri && (
-              <Image source={{ uri: dlcPhoto.uri }} style={{ width: '90%', height: '70%' }} resizeMode="contain" />
+              <Image source={{ uri: dlcPhoto.uri }} style={{ width: '90%', height: '60%' }} resizeMode="contain" />
             )}
             {dlcPhoto?.name && (
               <Text style={{ color: '#F5F5DC', fontSize: 14, marginTop: 16, textAlign: 'center' }}>{dlcPhoto.name}</Text>
             )}
             {dlcPhoto?.dlc_date && (
-              <Text style={{ color: '#D4AF37', fontSize: 13, marginTop: 6 }}>📅 DLC : {dlcPhoto.dlc_date?.includes('-') ? dlcPhoto.dlc_date.split('-').reverse().join('/') : dlcPhoto.dlc_date}</Text>
+              <Text style={{ color: '#D4AF37', fontSize: 13, marginTop: 6 }}>
+                📅 DLC : {dlcPhoto.dlc_date?.includes('-') ? dlcPhoto.dlc_date.split('-').reverse().join('/') : dlcPhoto.dlc_date}
+              </Text>
             )}
             {dlcPhoto?.lot && (
               <Text style={{ color: '#6B6050', fontSize: 11, marginTop: 2 }}>Lot : {dlcPhoto.lot}</Text>
+            )}
+
+            {dlcPhoto?.dlc_date && dlcPhoto?.id && (
+              <TouchableOpacity
+                style={{ marginTop: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 }}
+                onPress={async () => {
+                  const newActive = !dlcPhoto.dlc_active;
+                  setDlcPhoto({ ...dlcPhoto, dlc_active: newActive });
+                  try {
+                    const token = await getToken();
+                    fetch(`https://chefgestion-pro.onrender.com/api/haccp/photos/${dlcPhoto.id}/toggle-dlc`, {
+                      method: 'POST',
+                      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ active: newActive }),
+                    }).then(() => {
+                      refreshDashboard();
+                    }).catch(() => {
+                      setDlcPhoto((prev: any) => prev ? { ...prev, dlc_active: !newActive } : null);
+                    });
+                  } catch {}
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={{
+                  width: 40, height: 22, borderRadius: 11, justifyContent: 'center',
+                  backgroundColor: dlcPhoto.dlc_active ? '#4ADE80' : '#333',
+                  paddingHorizontal: 3,
+                }}>
+                  <View style={{
+                    width: 16, height: 16, borderRadius: 8, backgroundColor: '#FFF',
+                    alignSelf: dlcPhoto.dlc_active ? 'flex-end' : 'flex-start',
+                  }} />
+                </View>
+                <Text style={{ color: dlcPhoto.dlc_active ? '#4ADE80' : '#6B6050', fontSize: 12, fontWeight: 'bold' }}>
+                  {dlcPhoto.dlc_active ? 'ALERTE DLC ACTIVÉE' : 'ACTIVER L\'ALERTE DLC'}
+                </Text>
+              </TouchableOpacity>
             )}
           </View>
         </Modal>

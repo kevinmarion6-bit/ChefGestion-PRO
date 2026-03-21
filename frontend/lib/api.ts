@@ -522,6 +522,20 @@ export const PhotoArchives = {
   },
 };
 
+// ─── RATIO ARCHIVES ──────────────────────────────────────
+
+export const RatioArchives = {
+  async list() {
+    return apiFetch<any[]>('/ratio-archives');
+  },
+  async generate(year: number, month: number) {
+    return apiFetch<any>('/ratio-archives/generate', {
+      method: 'POST',
+      body: JSON.stringify({ year, month }),
+    });
+  },
+};
+
 // ─── HELPERS ─────────────────────────────────────────────
 
 async function uriToFormData(uri: string, fieldName: string): Promise<FormData> {
