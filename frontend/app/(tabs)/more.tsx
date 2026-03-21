@@ -1334,15 +1334,21 @@ function HaccpPage({ goBack, state, addHaccpPhoto }: any) {
                           e.stopPropagation?.();
                           if (!p.id) return;
                           const newActive = !p.dlc_active;
+                          // Mise à jour immédiate (optimiste)
+                          setPhotos(photos.map((ph: any) => ph.id === p.id ? { ...ph, dlc_active: newActive } : ph));
+                          // Sync serveur en arrière-plan
                           try {
                             const token = await getToken();
-                            await fetch(`https://chefgestion-pro.onrender.com/api/haccp/photos/${p.id}/toggle-dlc`, {
+                            fetch(`https://chefgestion-pro.onrender.com/api/haccp/photos/${p.id}/toggle-dlc`, {
                               method: 'POST',
                               headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
                               body: JSON.stringify({ active: newActive }),
+                            }).catch(() => {
+                              // Revert si échec
+                              setPhotos(prev => prev.map((ph: any) => ph.id === p.id ? { ...ph, dlc_active: !newActive } : ph));
+                              Alert.alert('Erreur', 'Impossible de modifier l\'alerte.');
                             });
-                            setPhotos(photos.map((ph: any) => ph.id === p.id ? { ...ph, dlc_active: newActive } : ph));
-                          } catch { Alert.alert('Erreur', 'Impossible de modifier l\'alerte.'); }
+                          } catch {}
                         }}
                       >
                         <View style={{

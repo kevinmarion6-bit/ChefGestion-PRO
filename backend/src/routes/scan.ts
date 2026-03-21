@@ -501,7 +501,7 @@ Si la DLC n'est pas lisible, mets null pour dlc.`;
       .from('haccp-photos')
       .upload(storagePath, req.file.buffer, { contentType: req.file.mimetype, upsert: false });
  
-    await supabase
+    const { data: savedPhoto } = await supabase
       .from('haccp_photos')
       .insert({
         user_id: req.userId!,
@@ -512,13 +512,16 @@ Si la DLC n'est pas lisible, mets null pour dlc.`;
         dlc_nom: data.nom || null,
         dlc_active: false,
         lot: data.lot || null,
-      });
+      })
+      .select('id')
+      .single();
  
     res.json({
       ok: true,
       data: {
         label: data,
         saved: !!data.dlc,
+        photo_id: savedPhoto?.id || null,
       },
     });
   } catch (err) {

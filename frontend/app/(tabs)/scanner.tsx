@@ -466,6 +466,25 @@ function ScanResult({ result }: { result: any }) {
   if (result.type === 'haccp') {
     const label = result.data?.label;
     const saved = result.data?.saved;
+    const photoId = result.data?.photo_id;
+    const [dlcActive, setDlcActive] = useState(false);
+
+    async function toggleDlc(newActive: boolean) {
+      if (!photoId) return;
+      setDlcActive(newActive);
+      try {
+        const token = await getToken();
+        fetch(`https://chefgestion-pro.onrender.com/api/haccp/photos/${photoId}/toggle-dlc`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ active: newActive }),
+        }).catch(() => {
+          setDlcActive(!newActive);
+          Alert.alert('Erreur', 'Impossible de modifier l\'alerte.');
+        });
+      } catch {}
+    }
+
     return (
       <View style={sr.card}>
         <Text style={{ color: '#4ADE80', fontSize: 32, textAlign: 'center' }}>✅</Text>
@@ -487,8 +506,36 @@ function ScanResult({ result }: { result: any }) {
           </Text>
         ) : null}
         <Text style={{ color: '#9A8060', fontSize: 11, textAlign: 'center', marginTop: 10, fontStyle: 'italic' }}>
-          {saved ? '📅 DLC enregistrée · alertes actives à J-3' : 'Photo sauvegardée (DLC non détectée)'}
+          {saved ? '📅 DLC détectée · Photo sauvegardée' : 'Photo sauvegardée (DLC non détectée)'}
         </Text>
+
+        {/* ─── TOGGLE ALERTE DLC ───── */}
+        {label?.dlc && photoId ? (
+          <View style={{ marginTop: 16, borderTopWidth: 1, borderTopColor: 'rgba(212,175,55,0.2)', paddingTop: 14 }}>
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 }}
+              onPress={() => toggleDlc(!dlcActive)}
+              activeOpacity={0.7}
+            >
+              <View style={{
+                width: 40, height: 22, borderRadius: 11, justifyContent: 'center',
+                backgroundColor: dlcActive ? '#4ADE80' : '#333',
+                paddingHorizontal: 3,
+              }}>
+                <View style={{
+                  width: 16, height: 16, borderRadius: 8, backgroundColor: '#FFF',
+                  alignSelf: dlcActive ? 'flex-end' : 'flex-start',
+                }} />
+              </View>
+              <Text style={{ color: dlcActive ? '#4ADE80' : '#6B6050', fontSize: 12, fontFamily: 'Cinzel_700Bold', letterSpacing: 1 }}>
+                {dlcActive ? 'ALERTE DLC ACTIVÉE' : 'ACTIVER L\'ALERTE DLC'}
+              </Text>
+            </TouchableOpacity>
+            <Text style={{ color: '#6B6050', fontSize: 10, textAlign: 'center', marginTop: 6, fontStyle: 'italic' }}>
+              Notification à J-3 · Alerte sur le tableau de bord
+            </Text>
+          </View>
+        ) : null}
       </View>
     );
   }
