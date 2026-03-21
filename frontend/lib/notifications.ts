@@ -1,12 +1,17 @@
 // frontend/lib/notifications.ts
 // ─── SERVICE DE NOTIFICATIONS PUSH ────────────────────────
-// Gère l'enregistrement du token push, la planification des rappels
-// et la sauvegarde du choix toggle dans AsyncStorage + backend
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { getToken } from './auth';
+
+// Chargement sécurisé — ne crash pas si le module natif n'existe pas
+let Notifications: any = null;
+try {
+  Notifications = require('expo-notifications');
+} catch {
+  Notifications = null;
+}
 
 const PUSH_PREF_KEY = 'cgp_push_temp_reminder';
 const PUSH_TOKEN_KEY = 'cgp_push_token';
@@ -22,25 +27,27 @@ const API_URL = (() => {
 
 // ─── CONFIGURATION NOTIFICATIONS ─────────────────────────
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+if (Notifications) {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
 
 // ─── DEMANDER LA PERMISSION ──────────────────────────────
 
 export async function registerForPushNotifications(): Promise<string | null> {
+  if (!Notifications) return null;
+
   try {
-    // Vérifier les permissions existantes
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
 
-    // Demander si pas encore accordé
     if (existingStatus !== 'granted') {
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
@@ -51,20 +58,15 @@ export async function registerForPushNotifications(): Promise<string | null> {
       return null;
     }
 
-    // Récupérer le token Expo Push
     const tokenData = await Notifications.getExpoPushTokenAsync({
-      projectId: undefined, // Expo le gère automatiquement
+      projectId: undefined,
     });
     const token = tokenData.data;
     console.log('[Notifs] Token obtenu:', token);
 
-    // Sauvegarder localement
     await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
-
-    // Envoyer au backend
     await savePushTokenToServer(token);
 
-    // Config Android
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('temp-reminders', {
         name: 'Rappels Température',
@@ -108,7 +110,6 @@ export async function scheduleTemperatureReminders(): Promise<void> {
   
   await Notifications.cancelAllScheduledNotificationsAsync();
 
-  // Rappel MIDI n°1 → 14h30
   await Notifications.scheduleNotificationAsync({
     content: {
       title: '🌡️ Relevé MIDI en attente',
@@ -123,7 +124,6 @@ export async function scheduleTemperatureReminders(): Promise<void> {
     },
   });
 
-  // Rappel MIDI n°2 → 15h30 (dernier rappel)
   await Notifications.scheduleNotificationAsync({
     content: {
       title: '⚠️ Dernier rappel MIDI !',
@@ -138,7 +138,6 @@ export async function scheduleTemperatureReminders(): Promise<void> {
     },
   });
 
-  // Rappel SOIR n°1 → 22h30
   await Notifications.scheduleNotificationAsync({
     content: {
       title: '🌡️ Relevé SOIR en attente',
@@ -153,7 +152,6 @@ export async function scheduleTemperatureReminders(): Promise<void> {
     },
   });
 
-  // Rappel SOIR n°2 → 23h30 (dernier rappel)
   await Notifications.scheduleNotificationAsync({
     content: {
       title: '⚠️ Dernier rappel SOIR !',
@@ -174,6 +172,7 @@ export async function scheduleTemperatureReminders(): Promise<void> {
 // ─── ANNULER LES RAPPELS ────────────────────────────────
 
 export async function cancelTemperatureReminders(): Promise<void> {
+  if (!Notifications) return;
   await Notifications.cancelAllScheduledNotificationsAsync();
   console.log('[Notifs] Rappels température annulés');
 }
@@ -181,10 +180,8 @@ export async function cancelTemperatureReminders(): Promise<void> {
 // ─── SAUVEGARDER LE CHOIX DU TOGGLE ─────────────────────
 
 export async function savePushPreference(enabled: boolean): Promise<void> {
-  // 1. Sauvegarder localement (pour persistance immédiate)
   await AsyncStorage.setItem(PUSH_PREF_KEY, JSON.stringify(enabled));
 
-  // 2. Sauvegarder côté serveur
   try {
     const authToken = await getToken();
     if (!authToken) return;
@@ -201,7 +198,6 @@ export async function savePushPreference(enabled: boolean): Promise<void> {
     console.error('[Notifs] Erreur sauvegarde préférence serveur:', err);
   }
 
-  // 3. Activer ou désactiver les rappels locaux
   if (enabled) {
     await registerForPushNotifications();
     await scheduleTemperatureReminders();

@@ -146,47 +146,54 @@ router.post('/temperature', requireAuth, upload.single('image'), async (req: Aut
     }
 
     // --- ÉTAPE 1 : MONTAGE MULTI-TRAITEMENTS ---
-    const baseImg = sharp(req.file.buffer).resize(1000);
-    const metadata = await baseImg.metadata();
-    const h = metadata.height || 600;
-    const w = metadata.width || 600;
+    // D'abord redimensionner, puis lire les vraies dimensions
+    const resizedBuffer = await sharp(req.file.buffer).resize(1000).toBuffer();
+    const metadata = await sharp(resizedBuffer).metadata();
+    const w = metadata.width || 1000;
+    const h = metadata.height || 750;
 
-    // Version A : Négatif + Seuil (idéal pour LED rouge/orange sur fond noir)
-    const thresholdLayer = await sharp(req.file.buffer)
-      .resize(1000)
-      .grayscale()
-      .negate()
-      .threshold(140)
-      .toBuffer();
+    let compositeBuffer: Buffer;
 
-    // Version B : Contraste fort (pour LED bleue/blanche)
-    const contrastLayer = await sharp(req.file.buffer)
-      .resize(1000)
-      .grayscale()
-      .linear(2.5, -80)
-      .toBuffer();
+    try {
+      // Version A : Négatif + Seuil (idéal pour LED rouge/orange sur fond noir)
+      const thresholdLayer = await sharp(resizedBuffer)
+        .grayscale()
+        .negate()
+        .threshold(140)
+        .toBuffer();
 
-    // Version C : Extraction du signe moins (bord gauche agrandi)
-    const leftCrop = await sharp(req.file.buffer)
-      .resize(1000)
-      .extract({ left: 0, top: 0, width: Math.floor(w * 0.35), height: h })
-      .resize(400, h)
-      .grayscale()
-      .negate()
-      .threshold(120)
-      .toBuffer();
+      // Version B : Contraste fort (pour LED bleue/blanche)
+      const contrastLayer = await sharp(resizedBuffer)
+        .grayscale()
+        .linear(2.5, -80)
+        .toBuffer();
 
-    const compositeBuffer = await baseImg
-      .extend({
-        bottom: h * 3,
-        background: { r: 255, g: 255, b: 255, alpha: 1 }
-      })
-      .composite([
-        { input: thresholdLayer, top: h, left: 0 },
-        { input: contrastLayer, top: h * 2, left: 0 },
-        { input: leftCrop, top: h * 3, left: 0 },
-      ])
-      .toBuffer();
+      // Version C : Extraction du signe moins (bord gauche agrandi)
+      const cropWidth = Math.min(Math.floor(w * 0.35), w - 1);
+      const cropHeight = Math.min(h, h - 1) || h;
+      const leftCrop = await sharp(resizedBuffer)
+        .extract({ left: 0, top: 0, width: cropWidth, height: cropHeight })
+        .resize(400, h)
+        .grayscale()
+        .negate()
+        .threshold(120)
+        .toBuffer();
+
+      compositeBuffer = await sharp(resizedBuffer)
+        .extend({
+          bottom: h * 3,
+          background: { r: 255, g: 255, b: 255, alpha: 1 }
+        })
+        .composite([
+          { input: thresholdLayer, top: h, left: 0 },
+          { input: contrastLayer, top: h * 2, left: 0 },
+          { input: leftCrop, top: h * 3, left: 0 },
+        ])
+        .toBuffer();
+    } catch (sharpErr) {
+      console.warn('[sharp] Recadrage impossible, utilisation image redimensionnée:', sharpErr);
+      compositeBuffer = resizedBuffer;
+    }
 
     // --- ÉTAPE 2 : APPEL VISION ---
     const visionKey = getVisionApiKey();
