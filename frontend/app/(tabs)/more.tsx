@@ -115,7 +115,7 @@ function FichesPage({ goBack }: { goBack: () => void }) {
       <style>
         @page { margin: 0; size: A4; }
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: Helvetica, Arial, sans-serif; color: #2C2C2C; height: 100%; display: flex; flex-direction: column; }
+        body { font-family: Helvetica, Arial, sans-serif; color: #2C2C2C; padding-bottom: 60px; }
         html { height: 100%; }
         .content-wrap { flex: 1; }
         .header { background: linear-gradient(135deg, #0C0C0C, #1A1A1A); padding: 20px 40px; display: flex; align-items: center; gap: 24px; }
@@ -130,7 +130,6 @@ function FichesPage({ goBack }: { goBack: () => void }) {
         .section-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
         .section-title { font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #1A1A1A; font-weight: 600; }
         .section-line { flex: 1; height: 1px; background: linear-gradient(90deg, #D4AF37, transparent); }
-        .footer { margin-top: auto; background: linear-gradient(135deg, #0C0C0C, #1A1A1A); padding: 18px 40px; display: flex; justify-content: space-between; }
       </style>
     </head><body>
       <div class="content-wrap">
@@ -187,11 +186,13 @@ function FichesPage({ goBack }: { goBack: () => void }) {
         </div>
       </div>
 
-      <div class="footer">
-        <span style="font-size:10px;color:#8A7A60;font-style:italic;">📄 Document généré automatiquement</span>
-        <span style="font-size:10px;letter-spacing:3px;color:#D4AF37;text-transform:uppercase;">✦ ChefGestion Pro ✦</span>
-        <span style="font-size:10px;color:#8A7A60;">© ${year} — Tous droits réservés</span>
-      </div>
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#111111;position:fixed;bottom:0;left:0;right:0;">
+        <tr>
+          <td width="33%" style="padding:18px 40px;font-size:10px;color:#8A7A60;font-style:italic;">📄 Document généré automatiquement</td>
+          <td width="34%" style="padding:18px 0;font-size:10px;letter-spacing:3px;color:#D4AF37;text-transform:uppercase;text-align:center;">✦ ChefGestion Pro ✦</td>
+          <td width="33%" style="padding:18px 40px;font-size:10px;color:#8A7A60;text-align:right;">© ${year} — Tous droits réservés</td>
+        </tr>
+      </table>
       <script>(function(){var b=document.body,p=1122;if(b.scrollHeight>p){var s=p/b.scrollHeight;if(s<0.7)s=0.7;b.style.transform='scale('+s+')';b.style.transformOrigin='top left';b.style.width=(100/s)+'%';}})()</script>
     </body></html>`;
 
