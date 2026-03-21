@@ -508,6 +508,20 @@ export const Fiches = {
   },
 };
 
+// ─── PHOTO ARCHIVES HACCP ────────────────────────────────
+
+export const PhotoArchives = {
+  async list() {
+    return apiFetch<any[]>('/photo-archives');
+  },
+  async generate(year: number, month: number) {
+    return apiFetch<any>('/photo-archives/generate', {
+      method: 'POST',
+      body: JSON.stringify({ year, month }),
+    });
+  },
+};
+
 // ─── HELPERS ─────────────────────────────────────────────
 
 async function uriToFormData(uri: string, fieldName: string): Promise<FormData> {

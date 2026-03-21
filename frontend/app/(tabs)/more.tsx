@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Image, StyleSheet, Alert, ActivityIndicator, Share } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Image, StyleSheet, Alert, ActivityIndicator, Share, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as Print from 'expo-print';
@@ -7,7 +7,7 @@ import { router } from 'expo-router';
 import { Colors, Spacing, Radius } from '@/constants/Theme';
 import { Card, Btn, ListItem, Empty, SectionTitle } from '@/components/UI';
 import { useApp } from '@/lib/context';
-import { Auth, Dashboard, Restaurant, Fiches } from '@/lib/api';
+import { Auth, Dashboard, Restaurant, Fiches, PhotoArchives } from '@/lib/api';
 import { getToken } from '@/lib/auth';
 
 declare global {
@@ -910,6 +910,12 @@ function HaccpPage({ goBack, state, addHaccpPhoto }: any) {
   const [fridgeEmoji, setFridgeEmoji] = useState('🥩');
   const [photos, setPhotos] = useState<any[]>(state?.haccpPhotos || []);
   const [loadingPhotos, setLoadingPhotos] = useState(true);
+  const [showAllFridges, setShowAllFridges] = useState(false);
+  const [showAllPhotos, setShowAllPhotos] = useState(false);
+  const [selectedPhoto, setSelectedPhoto] = useState<any>(null);
+  const [photoArchives, setPhotoArchives] = useState<any[]>([]);
+  const [photoArchivesLoading, setPhotoArchivesLoading] = useState(false);
+  const [showPhotoArchives, setShowPhotoArchives] = useState(false);
 
   useEffect(() => { 
     loadFridges(); 
@@ -925,14 +931,8 @@ function HaccpPage({ goBack, state, addHaccpPhoto }: any) {
       });
       const json = await res.json();
       if (json.ok && json.data) {
-        const serverPhotos = json.data.map((p: any) => ({
-          name: p.name,
-          date: p.date,
-          uri: p.storage_path 
-            ? `https://osnckjlgqqawcgduideb.supabase.co/storage/v1/object/public/haccp-photos/${p.storage_path}`
-            : null,
-        }));
-        // Fusionner photos locales + serveur (sans doublons)
+        // Le backend renvoie déjà { name, date, uri (signée) }
+        const serverPhotos = json.data.filter((p: any) => p.uri);
         const localPhotos = state?.haccpPhotos || [];
         const allPhotos = [...serverPhotos, ...localPhotos.filter(
           (lp: any) => !serverPhotos.some((sp: any) => sp.name === lp.name)
@@ -943,6 +943,32 @@ function HaccpPage({ goBack, state, addHaccpPhoto }: any) {
       console.error('[HACCP Photos]', err);
     } finally {
       setLoadingPhotos(false);
+    }
+  }
+
+  async function loadPhotoArchives() {
+    setPhotoArchivesLoading(true);
+    try {
+      const data = await PhotoArchives.list();
+      setPhotoArchives(data ?? []);
+    } catch (err) {
+      console.error('[PhotoArchives]', err);
+    } finally {
+      setPhotoArchivesLoading(false);
+    }
+  }
+
+  async function generatePhotoArchive() {
+    const now = new Date();
+    const prevMonth = now.getMonth();
+    const prevYear = prevMonth === 0 ? now.getFullYear() - 1 : now.getFullYear();
+    const prevMonthNum = prevMonth === 0 ? 12 : prevMonth;
+    try {
+      await PhotoArchives.generate(prevYear, prevMonthNum);
+      Alert.alert('✅ Succès', 'Archive photos générée !');
+      loadPhotoArchives();
+    } catch (err: any) {
+      Alert.alert('Erreur', err?.message || 'Impossible de générer l\'archive.');
     }
   }
 
@@ -1034,7 +1060,7 @@ function HaccpPage({ goBack, state, addHaccpPhoto }: any) {
             {fridges.length === 0 && (
               <Card><Text style={{ color: '#666', textAlign: 'center', padding: 20, fontSize: 13 }}>Aucun équipement configuré.{'\n'}Ajoute ton premier frigo ci-dessous.</Text></Card>
             )}
-            {fridges.map((f: any) => (
+            {(showAllFridges ? fridges : fridges.slice(0, 3)).map((f: any) => (
               <Card key={f.id} style={{ marginBottom: 8 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', padding: 12, gap: 12 }}>
                   <Text style={{ fontSize: 24 }}>{f.emoji || (f.type === 'negatif' ? '🧊' : '❄️')}</Text>
@@ -1049,6 +1075,16 @@ function HaccpPage({ goBack, state, addHaccpPhoto }: any) {
               </Card>
             ))}
 
+            {fridges.length > 3 && (
+              <TouchableOpacity
+                style={{ alignItems: 'center', paddingVertical: 10, marginBottom: 8 }}
+                onPress={() => setShowAllFridges(!showAllFridges)}
+              >
+                <Text style={{ color: Colors.gold, fontSize: 11, fontFamily: 'Cinzel_400Regular', letterSpacing: 1 }}>
+                  {showAllFridges ? '▲  RÉDUIRE' : `▼  VOIR TOUT (${fridges.length} équipements)`}
+                </Text>
+              </TouchableOpacity>
+            )}
             {showAddFridge ? (
               <Card style={{ padding: 16, gap: 12 }}>
                 <Text style={{ color: '#D4AF37', fontSize: 12, fontFamily: 'Cinzel_700Bold', letterSpacing: 1 }}>NOUVEL ÉQUIPEMENT</Text>
@@ -1155,18 +1191,163 @@ function HaccpPage({ goBack, state, addHaccpPhoto }: any) {
           </>
         )}
 
-        <SectionTitle style={{ marginTop: 24 }}>Étiquettes Sanitaires</SectionTitle>
-        <Btn label="📸  Ajouter une photo" onPress={pickPhoto} style={{ marginBottom: 16 }} />
-        {photos.length > 0 && (
-          <View style={styles.photoGrid}>
-            {photos.map((p: any, i: number) => (
-              <View key={i} style={styles.photoTile}>
-                <Image source={{ uri: p.uri }} style={styles.photoImg} resizeMode="cover" />
-                <View style={{ padding: 8 }}><Text style={styles.photoName} numberOfLines={1}>{p.name}</Text></View>
-              </View>
-            ))}
-          </View>
+        <SectionTitle style={{ marginTop: 24 }}>🏷️ Étiquettes Sanitaires</SectionTitle>
+        <Btn label="📸  Ajouter une photo" onPress={pickPhoto} style={{ marginBottom: 12 }} />
+        
+        {loadingPhotos ? (
+          <ActivityIndicator color="#D4AF37" style={{ marginTop: 10 }} />
+        ) : photos.length > 0 ? (
+          <>
+            <View style={styles.photoGrid}>
+              {(showAllPhotos ? photos : photos.slice(0, 4)).map((p: any, i: number) => (
+                <TouchableOpacity key={i} style={styles.photoTile} onPress={() => setSelectedPhoto(p)} activeOpacity={0.8}>
+                  {p.uri ? (
+                    <Image source={{ uri: p.uri }} style={styles.photoImg} resizeMode="cover" />
+                  ) : (
+                    <View style={[styles.photoImg, { backgroundColor: '#222', justifyContent: 'center', alignItems: 'center' }]}>
+                      <Text style={{ fontSize: 28, opacity: 0.5 }}>📷</Text>
+                    </View>
+                  )}
+                  <View style={{ padding: 8 }}>
+                    <Text style={styles.photoName} numberOfLines={1}>{p.name}</Text>
+                    {p.date && <Text style={{ fontSize: 10, color: Colors.muted }}>{p.date}</Text>}
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {photos.length > 4 && (
+              <TouchableOpacity
+                style={{ alignItems: 'center', paddingVertical: 10, marginTop: 4 }}
+                onPress={() => setShowAllPhotos(!showAllPhotos)}
+              >
+                <Text style={{ color: Colors.gold, fontSize: 11, fontFamily: 'Cinzel_400Regular', letterSpacing: 1 }}>
+                  {showAllPhotos ? '▲  RÉDUIRE' : `▼  VOIR TOUT (${photos.length} photos)`}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </>
+        ) : (
+          <Empty icon="📷" text={"Aucune étiquette ce mois-ci\nScannez depuis Scanner → HACCP"} />
         )}
+
+        {/* ─── ARCHIVES PHOTOS MENSUELLES ──────────── */}
+        <View style={{ marginTop: 24 }}>
+          <TouchableOpacity
+            style={{
+              flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+              backgroundColor: '#1A1A1A', borderRadius: 12, padding: 16,
+              borderWidth: 1, borderColor: 'rgba(212,175,55,0.15)',
+            }}
+            onPress={() => {
+              if (!showPhotoArchives) loadPhotoArchives();
+              setShowPhotoArchives(!showPhotoArchives);
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Text style={{ fontSize: 22 }}>📦</Text>
+              <View>
+                <Text style={{ color: '#F5F5DC', fontSize: 14, fontFamily: 'Cinzel_700Bold', letterSpacing: 1 }}>
+                  Archives Photos
+                </Text>
+                <Text style={{ color: '#6B6050', fontSize: 11, marginTop: 2 }}>
+                  PDF mensuels • Conservation 1 an
+                </Text>
+              </View>
+            </View>
+            <Text style={{ color: '#D4AF37', fontSize: 16 }}>{showPhotoArchives ? '▲' : '▼'}</Text>
+          </TouchableOpacity>
+
+          {showPhotoArchives && (
+            <View style={{ marginTop: 12, gap: 10 }}>
+              <TouchableOpacity
+                style={{ backgroundColor: 'rgba(212,175,55,0.1)', borderWidth: 1, borderColor: '#D4AF37', borderRadius: 10, padding: 14, alignItems: 'center' }}
+                onPress={generatePhotoArchive}
+              >
+                <Text style={{ color: '#D4AF37', fontSize: 12, fontFamily: 'Cinzel_700Bold', letterSpacing: 1 }}>
+                  📄 ARCHIVER LE MOIS PRÉCÉDENT
+                </Text>
+              </TouchableOpacity>
+
+              {photoArchivesLoading ? (
+                <ActivityIndicator color="#D4AF37" style={{ marginTop: 16 }} />
+              ) : photoArchives.length === 0 ? (
+                <View style={{ padding: 24, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 28, opacity: 0.5 }}>📭</Text>
+                  <Text style={{ color: '#6B6050', fontSize: 12, fontStyle: 'italic', marginTop: 6 }}>Aucune archive disponible</Text>
+                </View>
+              ) : (
+                photoArchives.map((a: any) => (
+                  <View key={a.id} style={{
+                    backgroundColor: '#111', borderRadius: 10, padding: 14,
+                    borderWidth: 1, borderColor: a.is_expiring_soon ? 'rgba(248,113,113,0.4)' : 'rgba(212,175,55,0.1)',
+                  }}>
+                    {a.is_expiring_soon && (
+                      <View style={{ backgroundColor: 'rgba(248,113,113,0.1)', borderRadius: 6, padding: 8, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={{ fontSize: 12 }}>⚠️</Text>
+                        <Text style={{ color: '#F87171', fontSize: 10, fontWeight: 'bold' }}>
+                          EXPIRE DANS {a.days_until_expiry} JOUR{a.days_until_expiry > 1 ? 'S' : ''} — Exportez-la !
+                        </Text>
+                      </View>
+                    )}
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: '#F5F5DC', fontSize: 14, fontFamily: 'Cinzel_400Regular', textTransform: 'capitalize' }}>
+                          📅 {a.month_label}
+                        </Text>
+                        <View style={{ flexDirection: 'row', gap: 12, marginTop: 6 }}>
+                          <Text style={{ color: '#6B6050', fontSize: 10 }}>📷 {a.photo_count} photos</Text>
+                          <Text style={{ color: '#6B6050', fontSize: 10 }}>📦 {a.file_size} KB</Text>
+                        </View>
+                      </View>
+                      <TouchableOpacity
+                        style={{ backgroundColor: '#D4AF37', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 }}
+                        onPress={async () => {
+                          if (!a.download_url) return;
+                          try {
+                            const response = await fetch(a.download_url);
+                            const html = await response.text();
+                            const { uri } = await Print.printToFileAsync({ html });
+                            const Sharing = require('expo-sharing');
+                            if (await Sharing.isAvailableAsync()) {
+                              await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `Archive Photos — ${a.month_label}` });
+                            } else {
+                              await Print.printAsync({ html });
+                            }
+                          } catch { Alert.alert('Erreur', 'Impossible de générer le PDF.'); }
+                        }}
+                      >
+                        <Text style={{ color: '#000', fontSize: 11, fontWeight: 'bold' }}>📥 PDF</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))
+              )}
+            </View>
+          )}
+        </View>
+
+        <View style={{ height: 40 }} />
+
+        {/* ─── MODALE PHOTO PLEIN ÉCRAN ──────────── */}
+        <Modal visible={!!selectedPhoto} transparent animationType="fade">
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' }}>
+            <TouchableOpacity
+              style={{ position: 'absolute', top: 50, right: 20, zIndex: 10, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20, width: 40, height: 40, justifyContent: 'center', alignItems: 'center' }}
+              onPress={() => setSelectedPhoto(null)}
+            >
+              <Text style={{ color: '#FFF', fontSize: 20, fontWeight: 'bold' }}>✕</Text>
+            </TouchableOpacity>
+            {selectedPhoto?.uri && (
+              <Image source={{ uri: selectedPhoto.uri }} style={{ width: '90%', height: '70%' }} resizeMode="contain" />
+            )}
+            {selectedPhoto?.name && (
+              <Text style={{ color: '#F5F5DC', fontSize: 14, marginTop: 16, textAlign: 'center' }}>{selectedPhoto.name}</Text>
+            )}
+            {selectedPhoto?.date && (
+              <Text style={{ color: '#6B6050', fontSize: 12, marginTop: 4 }}>{selectedPhoto.date}</Text>
+            )}
+          </View>
+        </Modal>
       </ScrollView>
     </SafeAreaView>
   );

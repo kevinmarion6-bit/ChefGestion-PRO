@@ -18,6 +18,7 @@ import { supabase }     from './services/supabase';
 import settingsRouter   from './routes/settings';
 import archivesRouter   from './routes/archives';
 import fichesRouter     from './routes/fiches';
+import photoArchivesRouter from './routes/photoArchives';
 import { runArchiveCron, runIncompleteMonthNotification } from './services/archiveGenerator';
 
 const app = express();
@@ -42,6 +43,7 @@ app.use('/api/restaurant', restaurantRouter);
 app.use('/api/settings',   settingsRouter);
 app.use('/api/archives',   archivesRouter);
 app.use('/api/fiches',     fichesRouter);
+app.use('/api/photo-archives', photoArchivesRouter);
 
 // ─── HEALTH CHECK ────────────────────────────────────────
 app.get('/api/health', async (_req, res) => {

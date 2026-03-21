@@ -18,10 +18,10 @@ const C = {
 type ScanType = 'factures' | 'carte' | 'temperature' | 'haccp';
 
 const TYPES = [
-  { id: 'factures'    as ScanType, icon: '🧾', label: 'Factures' },
-  { id: 'carte'       as ScanType, icon: '📋', label: 'Carte' },
-  { id: 'temperature' as ScanType, icon: '🌡️', label: 'Température' },
-  { id: 'haccp'       as ScanType, icon: '🏷️', label: 'HACCP' },
+  { id: 'factures'    as ScanType, icon: '🧾', label: 'Factures',    hint: 'Analysées par l\'IA et enregistrées dans Plus → Fournisseurs' },
+  { id: 'carte'       as ScanType, icon: '📋', label: 'Carte',        hint: 'Scannez votre Carte ou Menu' },
+  { id: 'temperature' as ScanType, icon: '🌡️', label: 'Température', hint: 'Enregistrée directement dans vos relevés HACCP' },
+  { id: 'haccp'       as ScanType, icon: '🏷️', label: 'HACCP',       hint: 'Étiquettes sanitaires avec alertes DLC en temps réel. Photos stockées dans Plus → Traçabilité HACCP' },
 ];
 
 function getFrameConfig(scanType: ScanType, frameWidth: number) {
@@ -356,6 +356,12 @@ function isFridgeDoneForCurrentService(fridgeId: string): boolean {
               <Text style={s.quotaText}>{result?.data?.count ?? 0} / 33 SCANS AUJOURD'HUI</Text>
             )}
           </TouchableOpacity>
+
+          <View style={{ backgroundColor: 'rgba(212,175,55,0.05)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.1)', borderRadius: 8, padding: 10, marginBottom: 14 }}>
+            <Text style={{ color: C.muted, fontSize: 11, fontStyle: 'italic', textAlign: 'center', lineHeight: 16 }}>
+              {TYPES.find(t => t.id === scanType)?.hint}
+            </Text>
+          </View>
 
           {imageUri && (
             <View style={s.preview}>
