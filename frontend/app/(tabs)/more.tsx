@@ -908,9 +908,43 @@ function HaccpPage({ goBack, state, addHaccpPhoto }: any) {
   const [newFridgeType, setNewFridgeType] = useState<'positif' | 'negatif' | 'cellule'>('positif');
   const [tempRange, setTempRange] = useState<'poissons' | 'viandes' | 'legumes'>('viandes');
   const [fridgeEmoji, setFridgeEmoji] = useState('🥩');
-  const photos = state?.haccpPhotos || [];
+  const [photos, setPhotos] = useState<any[]>(state?.haccpPhotos || []);
+  const [loadingPhotos, setLoadingPhotos] = useState(true);
 
-  useEffect(() => { loadFridges(); }, []);
+  useEffect(() => { 
+    loadFridges(); 
+    loadPhotosFromServer();
+  }, []);
+
+  async function loadPhotosFromServer() {
+    setLoadingPhotos(true);
+    try {
+      const token = await getToken();
+      const res = await fetch('https://chefgestion-pro.onrender.com/api/haccp/photos', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      if (json.ok && json.data) {
+        const serverPhotos = json.data.map((p: any) => ({
+          name: p.name,
+          date: p.date,
+          uri: p.storage_path 
+            ? `https://osnckjlgqqawcgduideb.supabase.co/storage/v1/object/public/haccp-photos/${p.storage_path}`
+            : null,
+        }));
+        // Fusionner photos locales + serveur (sans doublons)
+        const localPhotos = state?.haccpPhotos || [];
+        const allPhotos = [...serverPhotos, ...localPhotos.filter(
+          (lp: any) => !serverPhotos.some((sp: any) => sp.name === lp.name)
+        )];
+        setPhotos(allPhotos);
+      }
+    } catch (err) {
+      console.error('[HACCP Photos]', err);
+    } finally {
+      setLoadingPhotos(false);
+    }
+  }
 
   async function loadFridges() {
     setLoadingFridges(true);
