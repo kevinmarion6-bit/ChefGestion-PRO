@@ -10,6 +10,16 @@ import { useApp } from '@/lib/context';
 import { Auth, Dashboard, Restaurant, Fiches, PhotoArchives } from '@/lib/api';
 import { getToken } from '@/lib/auth';
 
+function formatDLC(dateStr: string | null): string {
+  if (!dateStr) return '';
+  // Si déjà en JJ/MM/AAAA
+  if (dateStr.includes('/')) return dateStr;
+  // Convertir YYYY-MM-DD → JJ/MM/AAAA
+  const parts = dateStr.split('-');
+  if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  return dateStr;
+}
+
 declare global {
   var __editFiche: any;
 }
@@ -312,7 +322,7 @@ function FichesPage({ goBack }: { goBack: () => void }) {
 }
 export default function MoreScreen() {
   const [sub, setSub] = useState<SubPage>(null);
-  const { user, state, addHaccpPhoto, clearAllData, logout } = useApp();
+  const { user, state, addHaccpPhoto, clearAllData, logout, refreshDashboard } = useApp();
 
   const initials = user?.name
     ? user.name.split(' ').map((w: string) => w[0]).join('').substring(0, 2).toUpperCase()
@@ -322,7 +332,7 @@ export default function MoreScreen() {
   function goBack() { setSub(null); }
 
   if (sub === 'suppliers')  return <SuppliersPage goBack={goBack} />;
-  if (sub === 'haccp')      return <HaccpPage goBack={goBack} state={state} addHaccpPhoto={addHaccpPhoto} />;
+  if (sub === 'haccp')      return <HaccpPage goBack={goBack} state={state} addHaccpPhoto={addHaccpPhoto} refreshDashboard={refreshDashboard} />;
   if (sub === 'settings')   return <SettingsPage goBack={goBack} clearAllData={clearAllData} />;
   if (sub === 'restaurant') return <RestaurantPage goBack={goBack} />;
   if (sub === 'fiches') return <FichesPage goBack={goBack} />;
@@ -900,7 +910,7 @@ function SuppliersPage({ goBack }: any) {
 // ═════════════════════════════════════════════════════════════
 // ─── HACCP ──────────────────────────────────────────────────
 // ═════════════════════════════════════════════════════════════
-function HaccpPage({ goBack, state, addHaccpPhoto }: any) {
+function HaccpPage({ goBack, state, addHaccpPhoto, refreshDashboard }: any) {
   const [fridges, setFridges]               = useState<any[]>([]);
   const [loadingFridges, setLoadingFridges] = useState(true);
   const [showAddFridge, setShowAddFridge]   = useState(false);
@@ -1343,6 +1353,9 @@ function HaccpPage({ goBack, state, addHaccpPhoto }: any) {
                               method: 'POST',
                               headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
                               body: JSON.stringify({ active: newActive }),
+                            }).then(() => {
+                              // Refresh dashboard en arrière-plan
+                              refreshDashboard?.();
                             }).catch(() => {
                               // Revert si échec
                               setPhotos(prev => prev.map((ph: any) => ph.id === p.id ? { ...ph, dlc_active: !newActive } : ph));
@@ -1362,7 +1375,7 @@ function HaccpPage({ goBack, state, addHaccpPhoto }: any) {
                           }} />
                         </View>
                         <Text style={{ fontSize: 8, color: p.dlc_active ? '#4ADE80' : '#666' }}>
-                          DLC {p.dlc_date}
+                          DLC {formatDLC(p.dlc_date)}
                         </Text>
                       </TouchableOpacity>
                     ) : null}
@@ -1502,10 +1515,47 @@ function HaccpPage({ goBack, state, addHaccpPhoto }: any) {
               <Text style={{ color: '#6B6050', fontSize: 12, marginTop: 4 }}>{selectedPhoto.date}</Text>
             )}
             {selectedPhoto?.dlc_date && (
-              <Text style={{ color: '#D4AF37', fontSize: 13, marginTop: 6 }}>📅 DLC : {selectedPhoto.dlc_date}</Text>
+              <Text style={{ color: '#D4AF37', fontSize: 13, marginTop: 6 }}>📅 DLC : {formatDLC(selectedPhoto.dlc_date)}</Text>
             )}
             {selectedPhoto?.lot && (
               <Text style={{ color: '#6B6050', fontSize: 11, marginTop: 2 }}>Lot : {selectedPhoto.lot}</Text>
+            )}
+            {selectedPhoto?.dlc_date && (
+              <TouchableOpacity
+                style={{ marginTop: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 }}
+                onPress={async () => {
+                  if (!selectedPhoto?.id) return;
+                  const newActive = !selectedPhoto.dlc_active;
+                  setSelectedPhoto({ ...selectedPhoto, dlc_active: newActive });
+                  setPhotos(photos.map((ph: any) => ph.id === selectedPhoto.id ? { ...ph, dlc_active: newActive } : ph));
+                  try {
+                    const token = await getToken();
+                    fetch(`https://chefgestion-pro.onrender.com/api/haccp/photos/${selectedPhoto.id}/toggle-dlc`, {
+                      method: 'POST',
+                      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ active: newActive }),
+                    }).catch(() => {
+                      setSelectedPhoto({ ...selectedPhoto, dlc_active: !newActive });
+                      setPhotos(prev => prev.map((ph: any) => ph.id === selectedPhoto.id ? { ...ph, dlc_active: !newActive } : ph));
+                    });
+                  } catch {}
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={{
+                  width: 40, height: 22, borderRadius: 11, justifyContent: 'center',
+                  backgroundColor: selectedPhoto.dlc_active ? '#4ADE80' : '#333',
+                  paddingHorizontal: 3,
+                }}>
+                  <View style={{
+                    width: 16, height: 16, borderRadius: 8, backgroundColor: '#FFF',
+                    alignSelf: selectedPhoto.dlc_active ? 'flex-end' : 'flex-start',
+                  }} />
+                </View>
+                <Text style={{ color: selectedPhoto.dlc_active ? '#4ADE80' : '#6B6050', fontSize: 12, fontWeight: 'bold' }}>
+                  {selectedPhoto.dlc_active ? 'ALERTE DLC ACTIVÉE' : 'ACTIVER L\'ALERTE DLC'}
+                </Text>
+              </TouchableOpacity>
             )}
             <TouchableOpacity
               style={{ marginTop: 24, backgroundColor: 'rgba(248,113,113,0.15)', borderWidth: 1, borderColor: '#F87171', borderRadius: 10, paddingVertical: 12, paddingHorizontal: 30 }}

@@ -480,9 +480,11 @@ router.post('/haccp-label', requireAuth, upload.single('image'), async (req: Aut
  
     const prompt = `Tu es un expert en lecture d'étiquettes alimentaires HACCP.
 Analyse cette image d'étiquette et extrais les informations suivantes.
-Réponds UNIQUEMENT en JSON valide (sans markdown) :
-{"nom":"nom du produit","dlc":"YYYY-MM-DD","lot":"numéro de lot si visible","fournisseur":"si visible"}
-Si la DLC n'est pas lisible, mets null pour dlc.`;
+IMPORTANT : La date peut être une DLC (Date Limite de Consommation), une DDM (Date de Durabilité Minimale, anciennement DLUO), ou une DCR (Date de Consommation Recommandée). Extrais la date quel que soit son type.
+Réponds UNIQUEMENT en JSON valide (sans markdown, sans backtick) :
+{"nom":"nom du produit","dlc":"YYYY-MM-DD","lot":"numéro de lot si visible","fournisseur":"si visible","date_type":"DLC ou DDM ou DCR"}
+Si aucune date n'est lisible, mets null pour dlc.
+Si la date est au format JJ/MM/AAAA ou JJ.MM.AAAA, convertis-la en YYYY-MM-DD.`;
  
     const raw = await enqueueGemini(() => callGemini(apiKey, prompt, b64, req.file!.mimetype));
     const data = parseGeminiJSON<{ nom: string; dlc: string | null; lot: string; fournisseur: string }>(raw);

@@ -98,6 +98,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
         nom: p.nom,
         dlc: p.dlc,
         lot: p.lot || '',
+        photo_id: p.photo_id || null,
         joursRestants: Math.ceil((new Date(p.dlc).getTime() - new Date(today).getTime()) / (1000 * 60 * 60 * 24)),
       }));
     } catch (e) {

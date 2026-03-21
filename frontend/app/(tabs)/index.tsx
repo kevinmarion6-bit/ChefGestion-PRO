@@ -6,6 +6,8 @@ import { Restaurant } from '@/lib/api';
 import { router } from 'expo-router';
 import { Archives } from '@/lib/api';
 import { loadPushPreference, savePushPreference } from '@/lib/notifications';
+import { Modal } from 'react-native';
+import { getToken } from '@/lib/auth';
 
 const C = { black: '#000', blackS: '#0C0C0C', charcoal: '#1A1A1A', gold: '#D4AF37', goldL: '#EAD06A', goldD: '#A07D1C', bronze: '#CD7F32', cream: '#F5F5DC', creamD: '#EDE8D0', muted: '#6B6050', mutedL: '#8A7A60', ok: '#4ADE80', warn: '#FACC15', bad: '#F87171', blue: '#60A5FA' };
 
@@ -15,6 +17,7 @@ export default function DashboardScreen() {
   const [pushEnabled, setPushEnabled] = useState(false);
   const [restaurantName, setRestaurantName] = useState('');
   const [archiveAlert, setArchiveAlert] = useState<any>(null);
+  const [dlcPhoto, setDlcPhoto] = useState<any>(null);
 
   const onRefresh = async () => { setRefreshing(true); await refreshDashboard(); setRefreshing(false); };
 
@@ -123,7 +126,22 @@ export default function DashboardScreen() {
               </View>
             ) : (
               dlcAlerts.slice(0, 3).map((a: any, i: number) => (
-                <View key={i} style={s.alertTempRow}>
+                <TouchableOpacity key={i} style={s.alertTempRow} activeOpacity={0.6}
+                  onPress={async () => {
+                    if (!a.photo_id) return;
+                    try {
+                      const token = await getToken();
+                      const res = await fetch(`https://chefgestion-pro.onrender.com/api/haccp/photos`, {
+                        headers: { Authorization: `Bearer ${token}` },
+                      });
+                      const json = await res.json();
+                      if (json.ok) {
+                        const photo = json.data.find((p: any) => p.id === a.photo_id);
+                        if (photo) setDlcPhoto(photo);
+                      }
+                    } catch {}
+                  }}
+                >
                   <Text style={{ fontSize: 12 }}>
                     {a.joursRestants === 0 ? '🔴' : a.joursRestants === 1 ? '🟠' : '🟡'}
                   </Text>
@@ -133,7 +151,8 @@ export default function DashboardScreen() {
                   }]}>
                     J-{a.joursRestants}
                   </Text>
-                </View>
+                  <Text style={{ fontSize: 10, color: C.muted, marginLeft: 4 }}>›</Text>
+                </TouchableOpacity>
               ))
             )}
           </View>
@@ -306,6 +325,29 @@ export default function DashboardScreen() {
     </View>
   </View>
 )}
+{/* ─── MODALE PHOTO DLC ──────────── */}
+        <Modal visible={!!dlcPhoto} transparent animationType="fade">
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' }}>
+            <TouchableOpacity
+              style={{ position: 'absolute', top: 50, right: 20, zIndex: 10, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20, width: 40, height: 40, justifyContent: 'center', alignItems: 'center' }}
+              onPress={() => setDlcPhoto(null)}
+            >
+              <Text style={{ color: '#FFF', fontSize: 20, fontWeight: 'bold' }}>✕</Text>
+            </TouchableOpacity>
+            {dlcPhoto?.uri && (
+              <Image source={{ uri: dlcPhoto.uri }} style={{ width: '90%', height: '70%' }} resizeMode="contain" />
+            )}
+            {dlcPhoto?.name && (
+              <Text style={{ color: '#F5F5DC', fontSize: 14, marginTop: 16, textAlign: 'center' }}>{dlcPhoto.name}</Text>
+            )}
+            {dlcPhoto?.dlc_date && (
+              <Text style={{ color: '#D4AF37', fontSize: 13, marginTop: 6 }}>📅 DLC : {dlcPhoto.dlc_date?.includes('-') ? dlcPhoto.dlc_date.split('-').reverse().join('/') : dlcPhoto.dlc_date}</Text>
+            )}
+            {dlcPhoto?.lot && (
+              <Text style={{ color: '#6B6050', fontSize: 11, marginTop: 2 }}>Lot : {dlcPhoto.lot}</Text>
+            )}
+          </View>
+        </Modal>
         <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
