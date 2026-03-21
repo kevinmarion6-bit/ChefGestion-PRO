@@ -1192,7 +1192,122 @@ function HaccpPage({ goBack, state, addHaccpPhoto }: any) {
         )}
 
         <SectionTitle style={{ marginTop: 24 }}>🏷️ Étiquettes Sanitaires</SectionTitle>
-        <Btn label="📸  Ajouter une photo" onPress={pickPhoto} style={{ marginBottom: 12 }} />
+        <Btn label="📸  Ajouter une photo" onPress={pickPhoto} style={{ marginBottom: 8 }} />
+        <TouchableOpacity
+          style={{ backgroundColor: 'rgba(212,175,55,0.08)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)', borderRadius: 10, paddingVertical: 10, alignItems: 'center', marginBottom: 12 }}
+          onPress={async () => {
+            if (photos.length === 0) { Alert.alert('Aucune photo', 'Scannez des étiquettes avant d\'exporter.'); return; }
+            try {
+              let restName = '';
+              let chefName = 'Le Chef';
+              try { const r = await Restaurant.get(); if (r?.nom) restName = r.nom; } catch {}
+              try { const me = await Auth.me(); if (me?.name) chefName = me.name; } catch {}
+
+              const logoUrl = 'https://osnckjlgqqawcgduideb.supabase.co/storage/v1/object/public/assets/logo.png';
+              const exportDate = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+              const monthLabel = new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+              const year = new Date().getFullYear();
+              const currentHour = new Date().getHours();
+              const currentService = (currentHour >= 2 && currentHour < 16) ? 'MIDI' : 'SOIR';
+
+              const photoRows = photos.map((p: any, idx: number) => {
+                const bgColor = idx % 2 === 0 ? '#FFFFFF' : '#FAFAF7';
+                return `<tr>
+                  <td style="padding:8px 10px;border-bottom:1px solid #EEE;background-color:${bgColor};font-size:12px;font-weight:bold;color:#1A1A1A;text-align:center;">${idx + 1}</td>
+                  <td style="padding:8px 10px;border-bottom:1px solid #EEE;background-color:${bgColor};">
+                    ${p.uri ? `<img src="${p.uri}" width="70" height="50" style="border:1px solid #E8E0D0;" />` : '<span style="color:#888;">📷</span>'}
+                  </td>
+                  <td style="padding:8px 10px;border-bottom:1px solid #EEE;background-color:${bgColor};font-size:12px;color:#333;">${p.name || 'Étiquette'}</td>
+                  <td style="padding:8px 10px;border-bottom:1px solid #EEE;background-color:${bgColor};font-size:11px;color:#888;">${p.date || '—'}</td>
+                </tr>`;
+              }).join('');
+
+              const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
+<body style="font-family:Helvetica,Arial,sans-serif;color:#2C2C2C;margin:0;padding:0;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="height:100vh;"><tr><td style="vertical-align:top;">
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#111;">
+  <tr><td style="padding:14px 40px;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        <td width="90" style="vertical-align:middle;"><img src="${logoUrl}" width="90" height="90" /></td>
+        <td style="padding-left:24px;vertical-align:middle;">
+          <table cellpadding="0" cellspacing="0" border="0">
+            <tr><td style="font-size:14px;letter-spacing:5px;text-transform:uppercase;color:#D4AF37;padding-bottom:4px;">✦ ChefGestion Pro ✦</td></tr>
+            ${restName ? `<tr><td style="font-size:24px;color:#F5F5DC;font-weight:bold;">🍽️ ${restName}</td></tr>` : ''}
+            <tr><td style="font-size:14px;color:#F5F5DC;padding-top:5px;">👨‍🍳 &nbsp; <span style="color:#D4AF37;font-weight:bold;">Chef</span> &nbsp; ${chefName}</td></tr>
+          </table>
+        </td>
+        <td style="vertical-align:middle;text-align:right;">
+          <span style="font-size:9px;color:#8A7A60;text-transform:uppercase;letter-spacing:1px;">Exporté le</span>
+          <br/><span style="font-size:14px;color:#8A7A60;">📅 ${exportDate}</span>
+          <br/><span style="font-size:11px;color:#D4AF37;">Service ${currentService}</span>
+        </td>
+      </tr>
+    </table>
+  </td></tr>
+</table>
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="height:3px;background-color:#D4AF37;"></td></tr></table>
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0">
+  <tr><td style="text-align:center;padding:10px 40px 0;">
+    <table cellpadding="0" cellspacing="0" border="0" align="center" style="border:2px solid #D4AF37;">
+      <tr><td style="padding:10px 20px;text-align:center;">
+        <table cellpadding="0" cellspacing="0" border="0" width="100%">
+          <tr><td style="font-size:8px;letter-spacing:4px;text-transform:uppercase;color:#A07D1C;text-align:center;padding-bottom:6px;">🏷️ Étiquettes Sanitaires HACCP</td></tr>
+          <tr><td style="font-size:22px;color:#1A1A1A;font-weight:bold;text-align:center;text-transform:capitalize;">${monthLabel}</td></tr>
+          <tr><td style="font-size:11px;color:#8A7A60;text-align:center;padding-top:4px;">${photos.length} étiquette${photos.length > 1 ? 's' : ''}</td></tr>
+        </table>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0">
+  <tr><td style="padding:12px 40px 8px;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:8px;">
+      <tr>
+        <td width="26" style="font-size:16px;vertical-align:middle;">📊</td>
+        <td style="font-size:13px;letter-spacing:3px;text-transform:uppercase;color:#1A1A1A;font-weight:bold;vertical-align:middle;white-space:nowrap;padding-right:10px;">Récapitulatif</td>
+        <td width="100%" style="vertical-align:middle;"><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-bottom:1px solid #D4AF37;height:1px;"></td></tr></table></td>
+      </tr>
+    </table>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E8E0D0;border-collapse:collapse;">
+      <tr>
+        <th style="background-color:#111;color:#D4AF37;padding:6px 10px;font-size:9px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;text-align:center;border:1px solid #E8E0D0;">N°</th>
+        <th style="background-color:#111;color:#D4AF37;padding:6px 10px;font-size:9px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;text-align:center;border:1px solid #E8E0D0;">Photo</th>
+        <th style="background-color:#111;color:#D4AF37;padding:6px 10px;font-size:9px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;text-align:left;border:1px solid #E8E0D0;">Nom</th>
+        <th style="background-color:#111;color:#D4AF37;padding:6px 10px;font-size:9px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;text-align:left;border:1px solid #E8E0D0;">Date</th>
+      </tr>
+      ${photoRows}
+    </table>
+  </td></tr>
+</table>
+
+</td></tr>
+<tr><td style="vertical-align:bottom;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#111;">
+  <tr>
+    <td width="33%" style="padding:14px 40px;font-size:10px;color:#8A7A60;font-style:italic;">📄 Document généré automatiquement</td>
+    <td width="34%" style="padding:14px 0;font-size:10px;letter-spacing:3px;color:#D4AF37;text-transform:uppercase;text-align:center;">✦ ChefGestion Pro ✦</td>
+    <td width="33%" style="padding:14px 40px;font-size:10px;color:#8A7A60;text-align:right;">© ${year} — Tous droits réservés</td>
+  </tr>
+</table>
+</td></tr>
+</table>
+
+</body></html>`;
+
+              await Print.printAsync({ html });
+            } catch {
+              Alert.alert('Erreur', 'Impossible de générer le PDF.');
+            }
+          }}
+        >
+          <Text style={{ color: Colors.gold, fontSize: 11, fontWeight: 'bold' }}>📄 Exporter le mois en cours (PDF)</Text>
+        </TouchableOpacity>
         
         {loadingPhotos ? (
           <ActivityIndicator color="#D4AF37" style={{ marginTop: 10 }} />
@@ -1211,6 +1326,39 @@ function HaccpPage({ goBack, state, addHaccpPhoto }: any) {
                   <View style={{ padding: 8 }}>
                     <Text style={styles.photoName} numberOfLines={1}>{p.name}</Text>
                     {p.date && <Text style={{ fontSize: 10, color: Colors.muted }}>{p.date}</Text>}
+                    {p.dlc_date && (
+                      <TouchableOpacity
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}
+                        onPress={async (e) => {
+                          e.stopPropagation?.();
+                          if (!p.id) return;
+                          const newActive = !p.dlc_active;
+                          try {
+                            const token = await getToken();
+                            await fetch(`https://chefgestion-pro.onrender.com/api/haccp/photos/${p.id}/toggle-dlc`, {
+                              method: 'POST',
+                              headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ active: newActive }),
+                            });
+                            setPhotos(photos.map((ph: any) => ph.id === p.id ? { ...ph, dlc_active: newActive } : ph));
+                          } catch { Alert.alert('Erreur', 'Impossible de modifier l\'alerte.'); }
+                        }}
+                      >
+                        <View style={{
+                          width: 28, height: 16, borderRadius: 8, justifyContent: 'center',
+                          backgroundColor: p.dlc_active ? '#4ADE80' : '#333',
+                          paddingHorizontal: 2,
+                        }}>
+                          <View style={{
+                            width: 12, height: 12, borderRadius: 6, backgroundColor: '#FFF',
+                            alignSelf: p.dlc_active ? 'flex-end' : 'flex-start',
+                          }} />
+                        </View>
+                        <Text style={{ fontSize: 8, color: p.dlc_active ? '#4ADE80' : '#666' }}>
+                          DLC {p.dlc_date}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </TouchableOpacity>
               ))}
@@ -1346,6 +1494,33 @@ function HaccpPage({ goBack, state, addHaccpPhoto }: any) {
             {selectedPhoto?.date && (
               <Text style={{ color: '#6B6050', fontSize: 12, marginTop: 4 }}>{selectedPhoto.date}</Text>
             )}
+            <TouchableOpacity
+              style={{ marginTop: 24, backgroundColor: 'rgba(248,113,113,0.15)', borderWidth: 1, borderColor: '#F87171', borderRadius: 10, paddingVertical: 12, paddingHorizontal: 30 }}
+              onPress={() => {
+                Alert.alert('Supprimer ?', `Supprimer "${selectedPhoto?.name}" ?`, [
+                  { text: 'Annuler', style: 'cancel' },
+                  {
+                    text: 'Supprimer', style: 'destructive', onPress: async () => {
+                      try {
+                        if (selectedPhoto?.id) {
+                          const token = await getToken();
+                          await fetch(`https://chefgestion-pro.onrender.com/api/haccp/photos/${selectedPhoto.id}`, {
+                            method: 'DELETE',
+                            headers: { Authorization: `Bearer ${token}` },
+                          });
+                        }
+                        setPhotos(photos.filter((p: any) => p !== selectedPhoto));
+                        setSelectedPhoto(null);
+                      } catch {
+                        Alert.alert('Erreur', 'Impossible de supprimer.');
+                      }
+                    }
+                  }
+                ]);
+              }}
+            >
+              <Text style={{ color: '#F87171', fontSize: 12, fontWeight: 'bold', textAlign: 'center' }}>🗑️ Supprimer cette photo</Text>
+            </TouchableOpacity>
           </View>
         </Modal>
       </ScrollView>

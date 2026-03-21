@@ -492,15 +492,8 @@ Si la DLC n'est pas lisible, mets null pour dlc.`;
       return;
     }
  
-    // Sauvegarder le produit DLC si une date est extraite
-    if (data.dlc) {
-      await supabase.from('dlc_products').insert({
-        user_id: req.userId!,
-        nom: data.nom || 'Produit inconnu',
-        dlc: data.dlc,
-        lot: data.lot || '',
-      });
-    }
+    // On ne crée plus l'alerte DLC automatiquement
+    // L'utilisateur active l'alerte manuellement depuis Traçabilité HACCP
  
     // Aussi uploader la photo HACCP comme avant
     const storagePath = `${req.userId}/${Date.now()}.jpg`;
@@ -515,6 +508,9 @@ Si la DLC n'est pas lisible, mets null pour dlc.`;
         name: data.nom || `Étiquette_${new Date().toLocaleDateString('fr-FR').replace(/\//g, '-')}`,
         date: new Date().toLocaleDateString('fr-FR'),
         storage_path: storagePath,
+        dlc_date: data.dlc || null,
+        dlc_nom: data.nom || null,
+        dlc_active: false,
       });
  
     res.json({

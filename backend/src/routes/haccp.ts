@@ -11,7 +11,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 *
 router.get('/photos', requireAuth, async (req: AuthRequest, res: Response) => {
   const { data, error } = await supabase
     .from('haccp_photos')
-    .select('id, name, date, storage_path, created_at')
+    .select('id, name, date, storage_path, created_at, dlc_active, dlc_date, dlc_nom')
     .in('user_id', await getRestaurantUserIds(req.userId!))
     .order('created_at', { ascending: false });
 
@@ -26,7 +26,7 @@ router.get('/photos', requireAuth, async (req: AuthRequest, res: Response) => {
         .createSignedUrl(p.storage_path, 3600); // valide 1h
       uri = signedUrl?.signedUrl ?? null;
     }
-    return { id: p.id, name: p.name, date: p.date, uri };
+    return { id: p.id, name: p.name, date: p.date, uri, dlc_active: p.dlc_active || false, dlc_date: p.dlc_date || null, dlc_nom: p.dlc_nom || null };
   }));
 
   res.json({ ok: true, data: photos });
@@ -70,7 +70,8 @@ router.delete('/photos/:id', requireAuth, async (req: AuthRequest, res: Response
   if (photo?.storage_path) {
     await supabase.storage.from('haccp-photos').remove([photo.storage_path]);
   }
-
+// Supprimer l'alerte DLC liée
+  await supabase.from('dlc_products').delete().eq('photo_id', req.params.id);
   const { error } = await supabase
     .from('haccp_photos').delete().eq('id', req.params.id).eq('user_id', req.userId!);
 
@@ -88,6 +89,92 @@ router.get('/alerts', requireAuth, async (req: AuthRequest, res: Response) => {
 
   if (error) { res.status(500).json({ ok: false, error: error.message }); return; }
   res.json({ ok: true, data });
+});
+
+// GET /api/haccp/dlc-alerts
+router.get('/dlc-alerts', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const userIds = await getRestaurantUserIds(req.userId!);
+    const { data, error } = await supabase
+      .from('dlc_products')
+      .select('*, haccp_photos(id, name, storage_path)')
+      .in('user_id', userIds)
+      .order('dlc', { ascending: true });
+
+    if (error) throw error;
+
+    const alerts = await Promise.all((data ?? []).map(async (d: any) => {
+      let photoUri = null;
+      if (d.haccp_photos?.storage_path) {
+        const { data: signed } = await supabase.storage
+          .from('haccp-photos')
+          .createSignedUrl(d.haccp_photos.storage_path, 3600);
+        photoUri = signed?.signedUrl ?? null;
+      }
+
+      const dlcDate = new Date(d.dlc);
+      const now = new Date();
+      const diffDays = Math.ceil((dlcDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+      return {
+        id: d.id,
+        nom: d.nom,
+        dlc: d.dlc,
+        days_left: diffDays,
+        photo_id: d.photo_id,
+        photo_uri: photoUri,
+        photo_name: d.haccp_photos?.name || null,
+      };
+    }));
+
+    res.json({ ok: true, data: alerts });
+  } catch (err) {
+    console.error('[/haccp/dlc-alerts]', err);
+    res.status(500).json({ ok: false, error: 'Erreur serveur' });
+  }
+});
+
+// POST /api/haccp/photos/:id/toggle-dlc
+router.post('/photos/:id/toggle-dlc', requireAuth, async (req: AuthRequest, res: Response) => {
+  const { active } = req.body;
+  const photoId = req.params.id;
+  const userId = req.userId!;
+
+  try {
+    // Récupérer la photo
+    const { data: photo, error: photoErr } = await supabase
+      .from('haccp_photos')
+      .select('*')
+      .eq('id', photoId)
+      .single();
+
+    if (photoErr || !photo) {
+      res.status(404).json({ ok: false, error: 'Photo non trouvée' });
+      return;
+    }
+
+    // Mettre à jour le flag
+    await supabase.from('haccp_photos').update({ dlc_active: active }).eq('id', photoId);
+
+    if (active && photo.dlc_date) {
+      // Créer l'alerte DLC
+      await supabase.from('dlc_products').upsert({
+        user_id: userId,
+        nom: photo.dlc_nom || photo.name || 'Produit',
+        dlc: photo.dlc_date,
+        lot: '',
+        photo_id: photoId,
+      }, { onConflict: 'photo_id' });
+    } else {
+      // Supprimer l'alerte DLC
+      await supabase.from('dlc_products').delete().eq('photo_id', photoId);
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[/haccp/photos/toggle-dlc]', err);
+    res.status(500).json({ ok: false, error: 'Erreur serveur' });
+  }
 });
 
 export default router;
