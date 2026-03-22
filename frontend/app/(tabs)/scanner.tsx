@@ -54,6 +54,7 @@ export default function ScannerScreen() {
   const [showCamera, setShowCamera]             = useState(false);
   const [permission, requestPermission]         = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
+  const [suppliers, setSuppliers]               = useState<Record<string, any>>({});
 
   const frameConfig  = getFrameConfig(scanType, FRAME_WIDTH);
   const FRAME_HEIGHT = frameConfig.height;
@@ -76,8 +77,9 @@ async function refreshTodayLogs() {
 
 useEffect(() => {
   (async () => {
+    const token = await getToken();
+
     try {
-      const token = await getToken();
       const res = await fetch('https://chefgestion-pro.onrender.com/api/fridges', {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -86,6 +88,14 @@ useEffect(() => {
     } catch (e) { console.error('[Frigos]', e); }
 
     refreshTodayLogs();
+
+    try {
+      const supRes = await fetch('https://chefgestion-pro.onrender.com/api/suppliers', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const supJson = await supRes.json();
+      if (supJson.ok) setSuppliers(supJson.data ?? {});
+    } catch {}
   })();
 }, []);
 
@@ -372,17 +382,229 @@ function isFridgeDoneForCurrentService(fridgeId: string): boolean {
             </View>
           )}
 
-          {result && <ScanResult result={result} />}
+          {result && <ScanResult result={result} suppliers={suppliers} onSuppliersChanged={setSuppliers} />}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-function ScanResult({ result }: { result: any }) {
+function ScanResult({ result, suppliers, onSuppliersChanged }: { result: any; suppliers?: Record<string, any>; onSuppliersChanged?: (s: Record<string, any>) => void }) {
   const [isEditing, setIsEditing]   = useState(false);
   const [manualTemp, setManualTemp] = useState('');
   const [savedTemp, setSavedTemp]   = useState<number | null>(null);
+
+  // ─── RÉSULTAT FACTURE ──────────────────────────────────
+  if (result.type === 'factures') {
+    const invoice = result.data?.invoice ?? result.invoice;
+    const priceAlerts = result.data?.priceAlerts ?? result.priceAlerts ?? [];
+    const products = invoice?.products ?? [];
+    const supplierName = invoice?.supplier || 'Inconnu';
+    const totalHT = invoice?.total_ht ?? 0;
+    const totalTTC = invoice?.total_ttc ?? 0;
+    const existingSuppliers = Object.keys(suppliers || {});
+
+    const [showSupplierModal, setShowSupplierModal] = useState(false);
+    const [newSupplierName, setNewSupplierName] = useState('');
+    const [selectedSupplier, setSelectedSupplier] = useState<string | null>(
+      existingSuppliers.includes(supplierName) ? supplierName : null
+    );
+
+    async function assignSupplier(name: string) {
+      try {
+        const token = await getToken();
+        // Créer ou récupérer le fournisseur
+        await fetch('https://chefgestion-pro.onrender.com/api/suppliers', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name }),
+        });
+        // Mettre à jour la facture avec le bon fournisseur
+        if (invoice?.id) {
+          await fetch(`https://chefgestion-pro.onrender.com/api/invoices/${invoice.id}`, {
+            method: 'PATCH',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ supplier: name }),
+          });
+        }
+        setSelectedSupplier(name);
+        setShowSupplierModal(false);
+        Alert.alert('✅ Fournisseur attribué', `Facture assignée à "${name}".`);
+        // Recharger les fournisseurs
+        const supRes = await fetch('https://chefgestion-pro.onrender.com/api/suppliers', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const supJson = await supRes.json();
+        if (supJson.ok && onSuppliersChanged) onSuppliersChanged(supJson.data ?? {});
+      } catch {
+        Alert.alert('Erreur', 'Impossible d\'attribuer le fournisseur.');
+      }
+    }
+
+    return (
+      <View style={sr.card}>
+        <Text style={{ color: '#4ADE80', fontSize: 32, textAlign: 'center' }}>✅</Text>
+        <Text style={sr.title}>FACTURE ANALYSÉE</Text>
+
+        {/* Fournisseur détecté */}
+        <View style={{ backgroundColor: 'rgba(212,175,55,0.08)', borderRadius: 10, padding: 14, width: '100%', marginTop: 8 }}>
+          <Text style={{ color: '#8A7A60', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6 }}>Fournisseur</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={{ color: '#F5F5DC', fontSize: 16, fontWeight: 'bold', flex: 1 }}>
+              🏭 {selectedSupplier || supplierName}
+            </Text>
+            <TouchableOpacity
+              style={{ backgroundColor: 'rgba(212,175,55,0.15)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.3)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}
+              onPress={() => setShowSupplierModal(true)}
+            >
+              <Text style={{ color: '#D4AF37', fontSize: 10, fontWeight: 'bold' }}>✏️ Modifier</Text>
+            </TouchableOpacity>
+          </View>
+          {!existingSuppliers.includes(supplierName) && !selectedSupplier && (
+            <Text style={{ color: '#FACC15', fontSize: 10, marginTop: 6, fontStyle: 'italic' }}>
+              ⚠️ Fournisseur non reconnu — attribuez-le ci-dessus
+            </Text>
+          )}
+        </View>
+
+        {/* Totaux */}
+        <View style={{ flexDirection: 'row', gap: 12, marginTop: 12, width: '100%' }}>
+          <View style={{ flex: 1, backgroundColor: '#111', borderRadius: 8, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(212,175,55,0.1)' }}>
+            <Text style={{ color: '#8A7A60', fontSize: 8, letterSpacing: 1, textTransform: 'uppercase' }}>Total HT</Text>
+            <Text style={{ color: '#D4AF37', fontSize: 20, fontWeight: 'bold', marginTop: 4 }}>{totalHT.toFixed(2)}€</Text>
+          </View>
+          <View style={{ flex: 1, backgroundColor: '#111', borderRadius: 8, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(212,175,55,0.1)' }}>
+            <Text style={{ color: '#8A7A60', fontSize: 8, letterSpacing: 1, textTransform: 'uppercase' }}>Total TTC</Text>
+            <Text style={{ color: '#F5F5DC', fontSize: 20, fontWeight: 'bold', marginTop: 4 }}>{totalTTC.toFixed(2)}€</Text>
+          </View>
+        </View>
+
+        {/* Produits */}
+        {products.length > 0 && (
+          <View style={{ marginTop: 12, width: '100%' }}>
+            <Text style={{ color: '#8A7A60', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>
+              {products.length} produit{products.length > 1 ? 's' : ''} détecté{products.length > 1 ? 's' : ''}
+            </Text>
+            {products.slice(0, 8).map((p: any, i: number) => (
+              <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.04)' }}>
+                <View style={{ flex: 1, marginRight: 8 }}>
+                  <Text style={{ color: '#F5F5DC', fontSize: 12 }} numberOfLines={1}>{p.nom || '—'}</Text>
+                  <Text style={{ color: '#6B6050', fontSize: 10 }}>{p.quantite || 0} {p.unite || 'u'} × {(p.prix_ht || 0).toFixed(2)}€</Text>
+                </View>
+                <Text style={{ color: '#D4AF37', fontSize: 12, fontWeight: 'bold' }}>{(p.total_ht || 0).toFixed(2)}€</Text>
+              </View>
+            ))}
+            {products.length > 8 && (
+              <Text style={{ color: '#6B6050', fontSize: 10, fontStyle: 'italic', textAlign: 'center', marginTop: 6 }}>
+                + {products.length - 8} autre{products.length - 8 > 1 ? 's' : ''} produit{products.length - 8 > 1 ? 's' : ''}
+              </Text>
+            )}
+          </View>
+        )}
+
+        {/* Alertes de prix */}
+        {priceAlerts.length > 0 && (
+          <View style={{ marginTop: 12, width: '100%', backgroundColor: 'rgba(248,113,113,0.08)', borderRadius: 8, padding: 10, borderWidth: 1, borderColor: 'rgba(248,113,113,0.2)' }}>
+            <Text style={{ color: '#F87171', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6, fontWeight: 'bold' }}>
+              ⚠️ {priceAlerts.length} alerte{priceAlerts.length > 1 ? 's' : ''} de prix
+            </Text>
+            {priceAlerts.map((a: any, i: number) => (
+              <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}>
+                <Text style={{ color: '#F5F5DC', fontSize: 11, flex: 1 }} numberOfLines={1}>{a.product}</Text>
+                <Text style={{ color: '#6B6050', fontSize: 11, textDecorationLine: 'line-through', marginRight: 6 }}>{a.oldPrice?.toFixed(2)}€</Text>
+                <Text style={{ color: '#F87171', fontSize: 11, fontWeight: 'bold' }}>{a.newPrice?.toFixed(2)}€</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        <Text style={{ color: '#6B6050', fontSize: 10, textAlign: 'center', marginTop: 12, fontStyle: 'italic' }}>
+          📊 Facture enregistrée · Ratios mis à jour
+        </Text>
+
+        {/* ─── MODALE CHOIX FOURNISSEUR ───── */}
+        <Modal visible={showSupplierModal} transparent animationType="fade">
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', padding: 24 }}>
+            <View style={{ backgroundColor: '#111', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: 'rgba(212,175,55,0.3)' }}>
+              <Text style={{ color: '#D4AF37', fontSize: 14, fontFamily: 'Cinzel_700Bold', letterSpacing: 1, textAlign: 'center', marginBottom: 4 }}>
+                ATTRIBUER UN FOURNISSEUR
+              </Text>
+              <Text style={{ color: '#6B6050', fontSize: 11, textAlign: 'center', marginBottom: 16 }}>
+                Choisissez un fournisseur existant ou créez-en un nouveau
+              </Text>
+
+              {/* Fournisseur détecté par l'IA */}
+              {supplierName && supplierName !== 'Inconnu' && (
+                <TouchableOpacity
+                  style={{ backgroundColor: 'rgba(74,222,128,0.1)', borderWidth: 1, borderColor: 'rgba(74,222,128,0.3)', borderRadius: 10, padding: 12, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 10 }}
+                  onPress={() => assignSupplier(supplierName)}
+                >
+                  <Text style={{ fontSize: 16 }}>🤖</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: '#4ADE80', fontSize: 12, fontWeight: 'bold' }}>{supplierName}</Text>
+                    <Text style={{ color: '#6B6050', fontSize: 10 }}>Détecté par l'IA</Text>
+                  </View>
+                  <Text style={{ color: '#4ADE80', fontSize: 11 }}>Utiliser →</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Fournisseurs existants */}
+              {existingSuppliers.length > 0 && (
+                <View style={{ marginBottom: 10 }}>
+                  <Text style={{ color: '#8A7A60', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>Fournisseurs existants</Text>
+                  <ScrollView style={{ maxHeight: 150 }} showsVerticalScrollIndicator={false}>
+                    {existingSuppliers.map(name => (
+                      <TouchableOpacity
+                        key={name}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.04)' }}
+                        onPress={() => assignSupplier(name)}
+                      >
+                        <Text style={{ fontSize: 14 }}>🏭</Text>
+                        <Text style={{ color: '#F5F5DC', fontSize: 13, flex: 1 }}>{name}</Text>
+                        <Text style={{ color: '#D4AF37', fontSize: 11 }}>Choisir →</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
+              {/* Créer nouveau */}
+              <View style={{ borderTopWidth: 1, borderTopColor: 'rgba(212,175,55,0.15)', paddingTop: 12, marginTop: 4 }}>
+                <Text style={{ color: '#8A7A60', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>Ou créer un nouveau</Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TextInput
+                    style={{ flex: 1, backgroundColor: '#000', borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)', borderRadius: 8, color: '#fff', fontSize: 14, padding: 10 }}
+                    value={newSupplierName}
+                    onChangeText={setNewSupplierName}
+                    placeholder="Nom du fournisseur..."
+                    placeholderTextColor="#444"
+                  />
+                  <TouchableOpacity
+                    style={{ backgroundColor: '#D4AF37', borderRadius: 8, paddingHorizontal: 16, justifyContent: 'center' }}
+                    onPress={() => {
+                      if (!newSupplierName.trim()) { Alert.alert('Erreur', 'Saisissez un nom.'); return; }
+                      assignSupplier(newSupplierName.trim());
+                      setNewSupplierName('');
+                    }}
+                  >
+                    <Text style={{ color: '#000', fontWeight: 'bold', fontSize: 12 }}>Créer</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Annuler */}
+              <TouchableOpacity
+                style={{ marginTop: 16, alignItems: 'center', paddingVertical: 10 }}
+                onPress={() => setShowSupplierModal(false)}
+              >
+                <Text style={{ color: '#666', fontSize: 12 }}>Annuler</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      </View>
+    );
+  }
 
   if (result.type === 'temperature') {
     const rawTemp     = result.data?.temperature ?? 0;

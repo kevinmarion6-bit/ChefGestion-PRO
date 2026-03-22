@@ -206,6 +206,18 @@ router.post('/temperature', requireAuth, upload.single('image'), async (req: Aut
     let confidence = 95;
     let method = 'Google Vision (Montage Hybride)';
 
+    // Charger les infos du frigo pour aider le parsing
+    const { fridge_id } = req.body;
+    let fridge: any = null;
+    if (fridge_id) {
+      const { data: fridgeData } = await supabase
+        .from('fridges')
+        .select('nom, temp_min, temp_max, type')
+        .eq('id', fridge_id)
+        .single();
+      fridge = fridgeData;
+    }
+
     // --- ÉTAPE 3 : LOGIQUE DE PARSING AMÉLIORÉE ---
     const normalized = rawText
       .replace(/,/g, '.')
@@ -215,12 +227,18 @@ router.post('/temperature', requireAuth, upload.single('image'), async (req: Aut
 
     console.log('[Parsing] Texte normalisé :', normalized);
 
+    // Nettoyer pour parsing
     const cleanedForParsing = normalized
-      .replace(/-\s*0+(\d+)/g, '-$1')
+      .replace(/-\s*0+(\d)/g, '-$1')     // "-020" → "-20"
+      .replace(/^0+(\d)/g, '$1')          // "020" → "20"
       .replace(/[^0-9.\-]/g, ' ')
       .trim();
 
     console.log('[Parsing] Après nettoyage :', cleanedForParsing);
+
+    // Détecter si le texte brut contenait un signe négatif
+    const rawHadMinus = /[-−–]/.test(rawText);
+    console.log('[Parsing] Signe négatif détecté dans texte brut :', rawHadMinus);
 
     const matches = cleanedForParsing.match(/-?\d+\.\d+|-?\d+/g) ?? [];
 
@@ -230,14 +248,29 @@ router.post('/temperature', requireAuth, upload.single('image'), async (req: Aut
         const isNeg = v.startsWith('-');
         const digitsOnly = v.replace('-', '').replace('.', '');
 
+        // Cas 3 chiffres sans point : ex "185" → pourrait être "18.5" ou "185"
         if (digitsOnly.length === 3 && !v.includes('.')) {
+          const asInt = parseFloat(v);
+          // Si c'est un entier crédible (ex: 185 n'est pas une température)
+          // Mais 18.5 oui. Et 23 aussi (pas besoin de décimal).
           const withDecimal = parseFloat((isNeg ? '-' : '') + digitsOnly.substring(0, 2) + '.' + digitsOnly[2]);
-          const withoutDecimal = parseFloat(v);
-
-          if (withoutDecimal >= 10 && withoutDecimal <= 35) {
-            v = String(withoutDecimal);
+          
+          // Préférer l'entier s'il est dans une plage crédible
+          if (Math.abs(asInt) >= 1 && Math.abs(asInt) <= 35) {
+            v = String(asInt);
           } else if (!isNaN(withDecimal) && withDecimal >= -40 && withDecimal <= 70) {
             v = String(withDecimal);
+          }
+        }
+
+        // Cas 4 chiffres sans point : ex "2023" → probablement "20.2" et "3" séparés, garder tel quel
+        // Cas 2 chiffres identiques collés : ex "2323" → "23" lu deux fois
+        if (digitsOnly.length === 4 && !v.includes('.')) {
+          const first2 = digitsOnly.substring(0, 2);
+          const last2 = digitsOnly.substring(2, 4);
+          if (first2 === last2) {
+            // "2323" → c'est "23" lu en double
+            v = (isNeg ? '-' : '') + first2;
           }
         }
 
@@ -247,11 +280,31 @@ router.post('/temperature', requireAuth, upload.single('image'), async (req: Aut
 
     console.log('[Parsing] Candidats valides :', candidates);
 
-    const negatives = candidates.filter(n => n < 0);
-    const decimals  = candidates.filter(n => !Number.isInteger(n) && n >= 0);
-    const integers  = candidates.filter(n => Number.isInteger(n) && n >= 0);
+    // Appliquer le signe négatif si détecté dans le texte brut mais absent des candidats
+    let finalCandidates = candidates;
+    if (rawHadMinus && candidates.length > 0 && candidates.every(c => c >= 0)) {
+      console.log('[Parsing] Forçage signe négatif (détecté dans raw mais pas dans candidats)');
+      finalCandidates = candidates.map(c => -Math.abs(c));
+    }
 
-    temperature = negatives[0] ?? decimals[0] ?? integers[0] ?? null;
+    // Priorité : négatifs > décimaux > entiers
+    const negatives = finalCandidates.filter(n => n < 0);
+    const decimals  = finalCandidates.filter(n => !Number.isInteger(n) && n >= 0);
+    const integers  = finalCandidates.filter(n => Number.isInteger(n) && n >= 0);
+
+    // Si on a un frigo sélectionné, utiliser sa plage pour départager
+    if (fridge) {
+      const fMin = fridge.temp_min ?? -21;
+      const fMax = fridge.temp_max ?? 4;
+      const inRange = finalCandidates.filter(n => n >= fMin - 3 && n <= fMax + 3);
+      if (inRange.length > 0) {
+        temperature = inRange[0];
+      } else {
+        temperature = negatives[0] ?? decimals[0] ?? integers[0] ?? null;
+      }
+    } else {
+      temperature = negatives[0] ?? decimals[0] ?? integers[0] ?? null;
+    }
 
     // --- ÉTAPE 4 : FALLBACK GEMINI (Si Vision a échoué) ---
     if (temperature === null) {
@@ -274,7 +327,6 @@ router.post('/temperature', requireAuth, upload.single('image'), async (req: Aut
     }
 
     // --- ÉTAPE 5 : MISE À JOUR QUOTA & ENREGISTREMENT ---
-    const { fridge_id } = req.body;
 
     await supabase.from('profiles')
       .update({ vision_scans_today: currentScans + 1, last_vision_reset: today })
@@ -297,16 +349,8 @@ router.post('/temperature', requireAuth, upload.single('image'), async (req: Aut
 
     const dateString = serviceDate.toISOString().split('T')[0];
 
-    // Récupère le nom du frigo si fourni
-    let fridge_nom = '';
-    if (fridge_id) {
-      const { data: fridge } = await supabase
-        .from('fridges')
-        .select('nom')
-        .eq('id', fridge_id)
-        .single();
-      fridge_nom = fridge?.nom ?? '';
-    }
+    // Récupère le nom du frigo (déjà chargé plus haut)
+    const fridge_nom = fridge?.nom ?? '';
 
     await supabase
       .from('temperature_logs')
@@ -319,19 +363,8 @@ router.post('/temperature', requireAuth, upload.single('image'), async (req: Aut
         fridge_nom:    fridge_nom,
       }, { onConflict: 'user_id,fridge_id,date,periode' });
 
-    let fridge_temp_min: number | undefined;
-    let fridge_temp_max: number | undefined;
-    if (fridge_id) {
-      const { data: fridgeData } = await supabase
-        .from('fridges')
-        .select('temp_min, temp_max')
-        .eq('id', fridge_id)
-        .single();
-      if (fridgeData) {
-        fridge_temp_min = fridgeData.temp_min;
-        fridge_temp_max = fridgeData.temp_max;
-      }
-    }
+    const fridge_temp_min = fridge?.temp_min;
+    const fridge_temp_max = fridge?.temp_max;
 
     res.json({
       ok: true,
