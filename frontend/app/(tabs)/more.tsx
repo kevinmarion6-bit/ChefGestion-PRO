@@ -131,6 +131,7 @@ function FichesPage({ goBack }: { goBack: () => void }) {
         .section-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
         .section-title { font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #1A1A1A; font-weight: 600; }
         .section-line { flex: 1; height: 1px; background: linear-gradient(90deg, #D4AF37, transparent); }
+
       </style>
     </head><body>
       <div class="content-wrap">
@@ -189,12 +190,11 @@ function FichesPage({ goBack }: { goBack: () => void }) {
 
       <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#111111;position:fixed;bottom:0;left:0;right:0;">
         <tr>
-          <td width="33%" style="padding:18px 40px;font-size:10px;color:#8A7A60;font-style:italic;">📄 Document généré automatiquement</td>
-          <td width="34%" style="padding:18px 0;font-size:10px;letter-spacing:3px;color:#D4AF37;text-transform:uppercase;text-align:center;">✦ ChefGestion Pro ✦</td>
-          <td width="33%" style="padding:18px 40px;font-size:10px;color:#8A7A60;text-align:right;">© ${year} — Tous droits réservés</td>
+          <td width="33%" style="padding:14px 40px;font-size:10px;color:#8A7A60;font-style:italic;">📄 Document généré automatiquement</td>
+          <td width="34%" style="padding:14px 0;font-size:10px;letter-spacing:3px;color:#D4AF37;text-transform:uppercase;text-align:center;">✦ ChefGestion Pro ✦</td>
+          <td width="33%" style="padding:14px 40px;font-size:10px;color:#8A7A60;text-align:right;">© ${year} — Tous droits réservés</td>
         </tr>
       </table>
-      <script>(function(){var b=document.body,p=1122;if(b.scrollHeight>p){var s=p/b.scrollHeight;if(s<0.7)s=0.7;b.style.transform='scale('+s+')';b.style.transformOrigin='top left';b.style.width=(100/s)+'%';}})()</script>
     </body></html>`;
 
     try {
@@ -1465,8 +1465,7 @@ function HaccpPage({ goBack, state, addHaccpPhoto, refreshDashboard }: any) {
                     ${p.uri ? `<img src="${p.uri}" width="70" height="50" style="border:1px solid #E8E0D0;" />` : '<span style="color:#888;">📷</span>'}
                   </td>
                   <td style="padding:8px 10px;border-bottom:1px solid #EEE;background-color:${bgColor};font-size:12px;color:#333;">${p.name || 'Étiquette'}</td>
-                  <td style="padding:8px 10px;border-bottom:1px solid #EEE;background-color:${bgColor};font-size:11px;color:#888;">${p.date || '—'}</td>
-                </tr>`;
+                  <td style="padding:8px 10px;border-bottom:1px solid #EEE;background-color:${bgColor};font-size:11px;color:#888;">${p.date || '—'}</td><td style="padding:8px 10px;border-bottom:1px solid #EEE;background:${bgColor};font-size:11px;color:#A07D1C;font-weight:bold;text-align:center;">${p.estampille || '—'}</td></tr>`;
               }).join('');
               
               const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>

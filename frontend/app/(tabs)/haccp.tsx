@@ -189,11 +189,12 @@ async function generateCurrentArchive() {
 }
 
   // ─── CELLULE DE REFROIDISSEMENT ────────────────────────
-  async function loadCelluleLogs() {
+  async function loadCelluleLogs(): Promise<any[]> {
     try {
       const raw = await AsyncStorage.getItem('@haccp_cellule');
-      if (raw) setCelluleLogs(JSON.parse(raw));
+      if (raw) { const parsed = JSON.parse(raw); setCelluleLogs(parsed); return parsed; }
     } catch {}
+    return [];
   }
   async function saveCelluleLog(entry: any) {
     const updated = [{ ...entry, id: Date.now().toString(), date: new Date().toISOString().split('T')[0] }, ...celluleLogs];
@@ -209,11 +210,12 @@ async function generateCurrentArchive() {
   }
 
   // ─── HUILES DE FRITURE ─────────────────────────────────
-  async function loadHuileLogs() {
+  async function loadHuileLogs(): Promise<any[]> {
     try {
       const raw = await AsyncStorage.getItem('@haccp_huiles');
-      if (raw) setHuileLogs(JSON.parse(raw));
+      if (raw) { const parsed = JSON.parse(raw); setHuileLogs(parsed); return parsed; }
     } catch {}
+    return [];
   }
   async function saveHuileLog(entry: any) {
     const updated = [{ ...entry, id: Date.now().toString(), date: new Date().toISOString().split('T')[0] }, ...huileLogs];
@@ -241,12 +243,12 @@ async function generateCurrentArchive() {
     { id: 'pms9', zone: 'Matériel de cuisson', freq: 'Quotidien', icon: '🍳' },
     { id: 'pms10', zone: 'Réserve sèche', freq: 'Mensuel', icon: '📦' },
   ];
-  async function loadPMSTasks() {
+  async function loadPMSTasks(): Promise<any[]> {
     try {
       const raw = await AsyncStorage.getItem('@haccp_pms');
-      if (raw) { setPmsTasks(JSON.parse(raw)); }
-      else { setPmsTasks(PMS_DEFAULT.map(t => ({ ...t, done: false, lastDone: null }))); }
-    } catch { setPmsTasks(PMS_DEFAULT.map(t => ({ ...t, done: false, lastDone: null }))); }
+      if (raw) { const parsed = JSON.parse(raw); setPmsTasks(parsed); return parsed; }
+      else { const defaults = PMS_DEFAULT.map(t => ({ ...t, done: false, lastDone: null })); setPmsTasks(defaults); return defaults; }
+    } catch { const defaults = PMS_DEFAULT.map(t => ({ ...t, done: false, lastDone: null })); setPmsTasks(defaults); return defaults; }
   }
   async function togglePMSTask(id: string) {
     const updated = pmsTasks.map(t => t.id === id ? { ...t, done: !t.done, lastDone: !t.done ? new Date().toISOString().split('T')[0] : t.lastDone } : t);
@@ -255,11 +257,12 @@ async function generateCurrentArchive() {
   }
 
   // ─── NETTOYAGE HOTTE ───────────────────────────────────
-  async function loadHottePhotos() {
+  async function loadHottePhotos(): Promise<any[]> {
     try {
       const raw = await AsyncStorage.getItem('@haccp_hotte');
-      if (raw) setHottePhotos(JSON.parse(raw));
+      if (raw) { const parsed = JSON.parse(raw); setHottePhotos(parsed); return parsed; }
     } catch {}
+    return [];
   }
   async function pickHottePhoto() {
     Alert.alert('Source', 'Importer le justificatif', [
@@ -288,7 +291,7 @@ async function generateCurrentArchive() {
   }
 
   // ─── ÉTIQUETTES SANITAIRES (lecture depuis serveur) ────
-  async function loadEtiquettePhotos() {
+  async function loadEtiquettePhotos(): Promise<any[]> {
     setEtiquetteLoading(true);
     try {
       const token = await getToken();
@@ -297,10 +300,13 @@ async function generateCurrentArchive() {
       });
       const json = await res.json();
       if (json.ok && json.data) {
-        setEtiquettePhotos(json.data.filter((p: any) => p.uri));
+        const filtered = json.data.filter((p: any) => p.uri);
+        setEtiquettePhotos(filtered);
+        return filtered;
       }
     } catch (err) { console.error('[Etiquettes]', err); }
     finally { setEtiquetteLoading(false); }
+    return [];
   }
 
   // ─── EXPORT PDF CELLULE ────────────────────────────────
@@ -358,10 +364,10 @@ async function generateCurrentArchive() {
   }
 
   // ─── GÉNÉRATEUR PDF HACCP RÉUTILISABLE ─────────────────
-  function buildHaccpPdf({ restName, chefName, exportDate, year, logoUrl, currentService, title, subtitle, tableHeaders, tableRows, extraHtml }: any): string {
-    return `<!DOCTYPE html>
-<html><head><meta charset="UTF-8"></head>
+  function buildHaccpPdf({ restName, chefName, exportDate, year, logoUrl, currentService, title, subtitle, tableHeaders, tableRows }: any): string {
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
 <body style="font-family:Helvetica,Arial,sans-serif;color:#2C2C2C;margin:0;padding:0;padding-bottom:60px;">
+
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#111111;">
   <tr><td style="padding:14px 40px;">
     <table width="100%" cellpadding="0" cellspacing="0" border="0">
@@ -405,6 +411,7 @@ async function generateCurrentArchive() {
     </table>
   </td></tr>
 </table>
+
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#111111;position:fixed;bottom:0;left:0;right:0;">
   <tr>
     <td width="33%" style="padding:14px 40px;font-size:10px;color:#8A7A60;font-style:italic;">📄 Document généré automatiquement</td>
@@ -420,12 +427,12 @@ async function generateCurrentArchive() {
     if (exportingAll) return;
     setExportingAll(true);
     try {
-      // Charger toutes les données si pas encore fait
-      if (celluleLogs.length === 0) await loadCelluleLogs();
-      if (huileLogs.length === 0) await loadHuileLogs();
-      if (pmsTasks.length === 0) await loadPMSTasks();
-      if (hottePhotos.length === 0) await loadHottePhotos();
-      if (etiquettePhotos.length === 0) await loadEtiquettePhotos();
+      // Charger TOUTES les données et récupérer les valeurs retournées
+      const cellData = celluleLogs.length > 0 ? celluleLogs : await loadCelluleLogs();
+      const huileData = huileLogs.length > 0 ? huileLogs : await loadHuileLogs();
+      const pmsData = pmsTasks.length > 0 ? pmsTasks : await loadPMSTasks();
+      const hotteData = hottePhotos.length > 0 ? hottePhotos : await loadHottePhotos();
+      const etiqData = etiquettePhotos.length > 0 ? etiquettePhotos : await loadEtiquettePhotos();
 
       let restName = ''; let chefName = 'Le Chef';
       try { const r = await Restaurant.get(); if (r?.nom) restName = r.nom; } catch {}
@@ -436,63 +443,120 @@ async function generateCurrentArchive() {
       const currentHour = new Date().getHours();
       const currentService = (currentHour >= 2 && currentHour < 16) ? 'MIDI' : 'SOIR';
 
-      // Section températures
-      let tempRows = '';
+      const th = (t: string) => `<th style="background:#111;color:#D4AF37;padding:5px 6px;font-size:7px;letter-spacing:1px;text-transform:uppercase;text-align:center;border:1px solid #E8E0D0;">${t}</th>`;
+
+      const sectionTitle = (icon: string, title: string) => `
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="page-break-inside:avoid;"><tr><td style="padding:12px 40px 6px;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+    <td width="26" style="font-size:16px;vertical-align:middle;">${icon}</td>
+    <td style="font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#1A1A1A;font-weight:bold;vertical-align:middle;padding-right:8px;">${title}</td>
+    <td width="100%" style="vertical-align:middle;"><table width="100%"><tr><td style="border-bottom:1px solid #D4AF37;height:1px;"></td></tr></table></td>
+  </tr></table>
+</td></tr></table>`;
+
+      // ─── TEMPÉRATURES ───────────────────
+      let tempHtml = sectionTitle('🌡️', 'Relevés de Températures');
       const fridgesToShow = fridges.length > 0 ? fridges : [{ id: null, nom: 'Sans équipement', type: 'positif', temp_min: 0, temp_max: 4, emoji: '' }];
       for (const fridge of fridgesToShow) {
         const fridgeLogs = fridge.id ? logs.filter((l: any) => l.fridge_id === fridge.id || (l.fridge_nom && l.fridge_nom === fridge.nom)) : logs.filter((l: any) => !l.fridge_id);
         const isFreez = fridge.type === 'negatif';
         const emoji = fridge.emoji || (isFreez ? '🧊' : '❄️');
-        tempRows += `<tr><td colspan="4" style="background:#111;color:#D4AF37;padding:8px;font-size:11px;font-weight:bold;">${emoji} ${fridge.nom} (${fridge.temp_min ?? 0}°C à ${fridge.temp_max ?? 4}°C)</td></tr>`;
         const today = new Date();
+
+        let fridgeRows = '';
         for (let day = 1; day <= Math.min(today.getDate(), daysInMonth); day++) {
           const dateStr = `${viewMonthStr}-${day.toString().padStart(2, '0')}`;
           const midi = fridgeLogs.find((l: any) => l.date === dateStr && l.periode === 'MIDI');
           const soir = fridgeLogs.find((l: any) => l.date === dateStr && l.periode === 'SOIR');
           const bg = day % 2 === 0 ? '#FFFFFF' : '#FAFAF7';
-          tempRows += `<tr><td style="padding:3px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:10px;text-align:center;">${day}</td><td style="padding:3px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:10px;text-align:center;font-weight:bold;color:${midi ? getTempColor(midi.valeur) : '#999'};">${midi ? midi.valeur + '°C' : '--'}</td><td style="padding:3px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:10px;text-align:center;font-weight:bold;color:${soir ? getTempColor(soir.valeur) : '#999'};">${soir ? soir.valeur + '°C' : '--'}</td><td style="padding:3px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:9px;color:#888;">${midi?.commentaire || soir?.commentaire || ''}</td></tr>`;
+          fridgeRows += `<tr><td style="padding:3px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:10px;text-align:center;">${day}</td><td style="padding:3px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:10px;text-align:center;font-weight:bold;color:${midi ? getTempColor(midi.valeur) : '#999'};">${midi ? midi.valeur + '°C' : '--'}</td><td style="padding:3px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:10px;text-align:center;font-weight:bold;color:${soir ? getTempColor(soir.valeur) : '#999'};">${soir ? soir.valeur + '°C' : '--'}</td><td style="padding:3px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:9px;color:#888;">${midi?.commentaire || soir?.commentaire || ''}</td></tr>`;
         }
+
+        tempHtml += `
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="page-break-inside:avoid;"><tr><td style="padding:2px 40px 8px;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E8E0D0;border-collapse:collapse;">
+    <tr><td colspan="4" style="background:#111;color:#D4AF37;padding:8px;font-size:11px;font-weight:bold;">${emoji} ${fridge.nom} (${fridge.temp_min ?? 0}°C à ${fridge.temp_max ?? 4}°C)</td></tr>
+    <tr>${th('Jour')}${th('☀️ Midi')}${th('🌙 Soir')}${th('💬 Comm.')}</tr>
+    ${fridgeRows}
+  </table>
+</td></tr></table>`;
       }
 
-      // Section cellule
-      const cellRows = celluleLogs.map((l: any, i: number) => {
-        const bg = i % 2 === 0 ? '#FFF' : '#FAFAF7'; const sc = l.conforme ? '#4ADE80' : '#F87171';
-        return `<tr><td style="padding:4px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:10px;text-align:center;">${l.date}</td><td style="padding:4px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:10px;">${l.produit}</td><td style="padding:4px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:10px;text-align:center;">${l.tempAvant}°C→${l.tempApres}°C</td><td style="padding:4px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:9px;text-align:center;color:${sc};font-weight:bold;">${l.conforme ? '✅' : '⚠️'}</td></tr>`;
-      }).join('');
+      // ─── CELLULE ────────────────────────
+      let cellHtml = '';
+      if (cellData.length > 0) {
+        const cellRows = cellData.map((l: any, i: number) => {
+          const bg = i % 2 === 0 ? '#FFF' : '#FAFAF7'; const sc = l.conforme ? '#4ADE80' : '#F87171';
+          return `<tr><td style="padding:4px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:10px;text-align:center;">${l.date}</td><td style="padding:4px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:10px;">${l.produit}</td><td style="padding:4px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:10px;text-align:center;">${l.tempAvant}°C→${l.tempApres}°C</td><td style="padding:4px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:9px;text-align:center;color:${sc};font-weight:bold;">${l.conforme ? '✅' : '⚠️'}</td></tr>`;
+        }).join('');
+        cellHtml = sectionTitle('🌬️', 'Cellule de Refroidissement') + `
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="page-break-inside:avoid;"><tr><td style="padding:2px 40px 8px;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E8E0D0;border-collapse:collapse;">
+    <tr>${th('Date')}${th('Produit')}${th('Températures')}${th('Statut')}</tr>
+    ${cellRows}
+  </table>
+</td></tr></table>`;
+      }
 
-      // Section huiles
-      const huileRows = huileLogs.map((l: any, i: number) => {
-        const bg = i % 2 === 0 ? '#FFF' : '#FAFAF7'; const pc = parseInt(l.testPolaire) > 25 ? '#F87171' : '#4ADE80';
-        return `<tr><td style="padding:4px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:10px;text-align:center;">${l.date}</td><td style="padding:4px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:10px;">${l.friteuse}</td><td style="padding:4px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:10px;text-align:center;color:${pc};font-weight:bold;">${l.testPolaire}%</td><td style="padding:4px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:10px;text-align:center;">${l.action}</td></tr>`;
-      }).join('');
+      // ─── ÉTIQUETTES (avec photos) ───────
+      let etiqHtml = '';
+      if (etiqData.length > 0) {
+        const etiqRows = etiqData.map((p: any, i: number) => {
+          const bg = i % 2 === 0 ? '#FFF' : '#FAFAF7';
+          return `<tr><td style="padding:6px 8px;border-bottom:1px solid #EEE;background:${bg};font-size:11px;text-align:center;font-weight:bold;color:#8A7A60;">${i + 1}</td><td style="padding:6px 8px;border-bottom:1px solid #EEE;background:${bg};">${p.uri ? `<img src="${p.uri}" width="60" height="40" style="border:1px solid #E8E0D0;border-radius:3px;" />` : '📷'}</td><td style="padding:6px 8px;border-bottom:1px solid #EEE;background:${bg};font-size:11px;color:#333;">${p.name || 'Étiquette'}</td><td style="padding:6px 8px;border-bottom:1px solid #EEE;background:${bg};font-size:10px;color:#888;text-align:center;">${p.date || '—'}</td><td style="padding:6px 8px;border-bottom:1px solid #EEE;background:${bg};font-size:10px;color:#A07D1C;font-weight:bold;text-align:center;">${p.estampille || '—'}</td></tr>`;
+        }).join('');
+        etiqHtml = sectionTitle('🏷️', 'Étiquettes Sanitaires') + `
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="page-break-inside:avoid;"><tr><td style="padding:2px 40px 8px;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E8E0D0;border-collapse:collapse;">
+    <tr>${th('N°')}${th('Photo')}${th('Nom')}${th('Date')}${th('Estampille')}</tr>
+    ${etiqRows}
+  </table>
+</td></tr></table>`;
+      }
 
-      // Section PMS
-      const pmsRows = pmsTasks.map((t: any, i: number) => {
+      // ─── HUILES ─────────────────────────
+      let huileHtml = '';
+      if (huileData.length > 0) {
+        const huileRows = huileData.map((l: any, i: number) => {
+          const bg = i % 2 === 0 ? '#FFF' : '#FAFAF7'; const pc = parseInt(l.testPolaire) > 25 ? '#F87171' : '#4ADE80';
+          return `<tr><td style="padding:4px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:10px;text-align:center;">${l.date}</td><td style="padding:4px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:10px;">${l.friteuse}</td><td style="padding:4px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:10px;text-align:center;color:${pc};font-weight:bold;">${l.testPolaire}%</td><td style="padding:4px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:10px;text-align:center;">${l.action}</td></tr>`;
+        }).join('');
+        huileHtml = sectionTitle('🛢️', 'Huiles de Friture') + `
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="page-break-inside:avoid;"><tr><td style="padding:2px 40px 8px;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E8E0D0;border-collapse:collapse;">
+    <tr>${th('Date')}${th('Friteuse')}${th('Test Polaire')}${th('Action')}</tr>
+    ${huileRows}
+  </table>
+</td></tr></table>`;
+      }
+
+      // ─── PMS ────────────────────────────
+      const pmsRows = pmsData.map((t: any, i: number) => {
         const bg = i % 2 === 0 ? '#FFF' : '#FAFAF7';
         return `<tr><td style="padding:4px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:10px;">${t.icon} ${t.zone}</td><td style="padding:4px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:10px;text-align:center;">${t.freq}</td><td style="padding:4px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:10px;text-align:center;color:${t.done ? '#4ADE80' : '#F87171'};font-weight:bold;">${t.done ? '✅ Fait' : '❌ Non fait'}</td><td style="padding:4px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:9px;text-align:center;color:#888;">${t.lastDone || '—'}</td></tr>`;
       }).join('');
-
-      // Section hotte
-      const hotteSection = hottePhotos.length > 0
-        ? hottePhotos.map(p => `<div style="margin:4px 0;font-size:11px;">📸 Justificatif du ${p.date} (Année ${p.year})</div>`).join('')
-        : '<div style="font-size:11px;color:#888;font-style:italic;">Aucun justificatif importé</div>';
-
-      const sectionBlock = (icon: string, sTitle: string, headers: string, rows: string) => `
-<table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:6px 40px 4px;">
-  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:6px;"><tr>
-    <td width="26" style="font-size:16px;vertical-align:middle;">${icon}</td>
-    <td style="font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#1A1A1A;font-weight:bold;vertical-align:middle;white-space:nowrap;padding-right:8px;">${sTitle}</td>
-    <td width="100%" style="vertical-align:middle;"><table width="100%"><tr><td style="border-bottom:1px solid #D4AF37;height:1px;"></td></tr></table></td>
-  </tr></table>
+      const pmsHtml = sectionTitle('🧹', 'Plan de Maîtrise Sanitaire') + `
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="page-break-inside:avoid;"><tr><td style="padding:2px 40px 8px;">
   <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E8E0D0;border-collapse:collapse;">
-    <tr>${headers}</tr>${rows}
+    <tr>${th('Zone')}${th('Fréquence')}${th('Statut')}${th('Dernier')}</tr>
+    ${pmsRows}
   </table>
 </td></tr></table>`;
 
-      const th = (t: string) => `<th style="background:#111;color:#D4AF37;padding:4px 6px;font-size:7px;letter-spacing:1px;text-transform:uppercase;text-align:center;border:1px solid #E8E0D0;">${t}</th>`;
+      // ─── HOTTE ──────────────────────────
+      const hotteContent = hotteData.length > 0
+        ? hotteData.map((p: any) => `<tr><td style="padding:6px 8px;font-size:11px;border-bottom:1px solid #EEE;">📸 Justificatif du ${p.date} (Année ${p.year})</td></tr>`).join('')
+        : '<tr><td style="padding:10px 8px;font-size:11px;color:#888;font-style:italic;">Aucun justificatif importé</td></tr>';
+      const hotteHtml = sectionTitle('🌀', 'Nettoyage Hotte Aspirante') + `
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="page-break-inside:avoid;"><tr><td style="padding:2px 40px 8px;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E8E0D0;border-collapse:collapse;">
+    ${hotteContent}
+  </table>
+</td></tr></table>`;
 
       const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
 <body style="font-family:Helvetica,Arial,sans-serif;color:#2C2C2C;margin:0;padding:0;padding-bottom:60px;">
+
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#111111;">
   <tr><td style="padding:14px 40px;"><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
     <td width="80" style="vertical-align:middle;"><img src="${logoUrl}" width="90" height="90" /></td>
@@ -505,30 +569,22 @@ async function generateCurrentArchive() {
   </tr></table></td></tr>
 </table>
 <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="height:3px;background-color:#D4AF37;"></td></tr></table>
-<table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="text-align:center;padding:8px 40px 0;">
-  <table cellpadding="0" cellspacing="0" border="0" align="center" style="border:2px solid #D4AF37;"><tr><td style="padding:10px 20px;text-align:center;">
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="text-align:center;padding:6px 40px 2px;">
+  <table cellpadding="0" cellspacing="0" border="0" align="center" style="border:2px solid #D4AF37;"><tr><td style="padding:8px 18px;text-align:center;">
     <table cellpadding="0" cellspacing="0" border="0" width="100%">
-      <tr><td style="font-size:8px;letter-spacing:4px;text-transform:uppercase;color:#A07D1C;text-align:center;padding-bottom:6px;">🛡️ Dossier Justificatifs Hygiène — Contrôle HACCP</td></tr>
-      <tr><td style="font-size:22px;color:#1A1A1A;font-weight:bold;text-align:center;">${viewMonthLabel}</td></tr>
+      <tr><td style="font-size:8px;letter-spacing:4px;text-transform:uppercase;color:#A07D1C;text-align:center;padding-bottom:4px;">🛡️ Dossier Justificatifs Hygiène — Contrôle HACCP</td></tr>
+      <tr><td style="font-size:20px;color:#1A1A1A;font-weight:bold;text-align:center;">${viewMonthLabel}</td></tr>
     </table>
   </td></tr></table>
 </td></tr></table>
 
-<table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="height:4px;"></td></tr></table>
-
-${sectionBlock('🌡️', 'Relevés de Températures', `${th('Jour')}${th('☀️ Midi')}${th('🌙 Soir')}${th('💬 Comm.')}`, tempRows)}
-${cellRows ? sectionBlock('🌬️', 'Cellule de Refroidissement', `${th('Date')}${th('Produit')}${th('Températures')}${th('Statut')}`, cellRows) : ''}
-${etiquettePhotos.length > 0 ? sectionBlock('🏷️', 'Étiquettes Sanitaires', `${th('N°')}${th('Nom')}${th('Date')}${th('DLC')}`, etiquettePhotos.map((p: any, i: number) => { const bg = i % 2 === 0 ? '#FFF' : '#FAFAF7'; return `<tr><td style="padding:4px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:10px;text-align:center;">${i+1}</td><td style="padding:4px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:10px;">${p.name || 'Étiquette'}</td><td style="padding:4px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:10px;text-align:center;">${p.date || '—'}</td><td style="padding:4px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:10px;text-align:center;">${p.dlc_date || '—'}</td></tr>`; }).join('')) : ''}
-${huileRows ? sectionBlock('🛢️', 'Huiles de Friture', `${th('Date')}${th('Friteuse')}${th('Test Polaire')}${th('Action')}`, huileRows) : ''}
-${sectionBlock('🧹', 'Plan de Maîtrise Sanitaire', `${th('Zone')}${th('Fréquence')}${th('Statut')}${th('Dernier')}`, pmsRows)}
-<table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:10px 40px 4px;">
-  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:6px;"><tr>
-    <td width="26" style="font-size:16px;vertical-align:middle;">🌀</td>
-    <td style="font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#1A1A1A;font-weight:bold;vertical-align:middle;padding-right:8px;">Nettoyage Hotte Aspirante</td>
-    <td width="100%" style="vertical-align:middle;"><table width="100%"><tr><td style="border-bottom:1px solid #D4AF37;height:1px;"></td></tr></table></td>
-  </tr></table>
-  <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E8E0D0;border-collapse:collapse;"><tr><td style="padding:10px;font-size:11px;color:#333;">${hotteSection}</td></tr></table>
-</td></tr></table>
+${tempHtml}
+${cellHtml}
+${etiqHtml}
+${huileHtml}
+${pmsHtml}
+${hotteHtml}
 
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#111111;position:fixed;bottom:0;left:0;right:0;">
   <tr>
@@ -1237,8 +1293,9 @@ ${pagesHtml}
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <TouchableOpacity style={{ backgroundColor: 'rgba(212,175,55,0.15)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.3)', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 }} onPress={async (e) => {
                   e.stopPropagation();
-                  if (celluleLogs.length === 0) await loadCelluleLogs();
-                  if (celluleLogs.length === 0) { Alert.alert('Aucun relevé', 'Ajoutez un relevé de cellule avant d\'exporter.'); return; }
+                  let data = celluleLogs;
+                  if (data.length === 0) data = await loadCelluleLogs();
+                  if (data.length === 0) { Alert.alert('Aucun relevé', 'Ajoutez un relevé de cellule avant d\'exporter.'); return; }
                   try {
                     const html = await exportCellulePdf();
                     const { uri } = await Print.printToFileAsync({ html });
@@ -1306,7 +1363,7 @@ ${pagesHtml}
                 <TouchableOpacity style={{ backgroundColor: 'rgba(212,175,55,0.15)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.3)', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 }} onPress={async (e) => {
                   e.stopPropagation();
                   let photos = etiquettePhotos;
-                  if (photos.length === 0) { await loadEtiquettePhotos(); photos = etiquettePhotos; }
+                  if (photos.length === 0) photos = await loadEtiquettePhotos();
                   if (photos.length === 0) { Alert.alert('Aucune étiquette', 'Scannez des étiquettes depuis Scanner → HACCP.'); return; }
                   try {
                     let restName = ''; let chefName = 'Le Chef';
@@ -1407,8 +1464,9 @@ ${pagesHtml}
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <TouchableOpacity style={{ backgroundColor: 'rgba(212,175,55,0.15)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.3)', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 }} onPress={async (e) => {
                   e.stopPropagation();
-                  if (huileLogs.length === 0) await loadHuileLogs();
-                  if (huileLogs.length === 0) { Alert.alert('Aucun contrôle', 'Ajoutez un contrôle d\'huile avant d\'exporter.'); return; }
+                  let data = huileLogs;
+                  if (data.length === 0) data = await loadHuileLogs();
+                  if (data.length === 0) { Alert.alert('Aucun contrôle', 'Ajoutez un contrôle d\'huile avant d\'exporter.'); return; }
                   try {
                     const html = await exportHuilesPdf();
                     const { uri } = await Print.printToFileAsync({ html });

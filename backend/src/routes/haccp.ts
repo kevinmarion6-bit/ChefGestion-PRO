@@ -11,7 +11,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 *
 router.get('/photos', requireAuth, async (req: AuthRequest, res: Response) => {
   const { data, error } = await supabase
     .from('haccp_photos')
-    .select('id, name, date, storage_path, created_at, dlc_active, dlc_date, dlc_nom, lot')
+    .select('id, name, date, storage_path, created_at, dlc_active, dlc_date, dlc_nom, lot, estampille')
     .in('user_id', await getRestaurantUserIds(req.userId!))
     .order('created_at', { ascending: false });
 
@@ -26,7 +26,7 @@ router.get('/photos', requireAuth, async (req: AuthRequest, res: Response) => {
         .createSignedUrl(p.storage_path, 3600); // valide 1h
       uri = signedUrl?.signedUrl ?? null;
     }
-    return { id: p.id, name: p.name, date: p.date, uri, dlc_active: p.dlc_active || false, dlc_date: p.dlc_date || null, dlc_nom: p.dlc_nom || null, lot: p.lot || null };
+    return { id: p.id, name: p.name, date: p.date, uri, dlc_active: p.dlc_active || false, dlc_date: p.dlc_date || null, dlc_nom: p.dlc_nom || null, lot: p.lot || null, estampille: p.estampille || null };
   }));
 
   res.json({ ok: true, data: photos });

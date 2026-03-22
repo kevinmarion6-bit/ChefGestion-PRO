@@ -598,11 +598,7 @@ export default function RatiosScreen() {
     const productiviteChart = buildLineChartSvg(prodChartData, chartLabels, 'Évolution Productivité (€/h)', '⏱️', '€/h');
 
     const html = `<!DOCTYPE html>
-<html><head><meta charset="UTF-8">
-<style>
-  .chart-block { page-break-inside: avoid; margin-top: 16px; }
-</style>
-</head>
+<html><head><meta charset="UTF-8"></head>
 <body style="font-family:Helvetica,Arial,sans-serif;color:#2C2C2C;margin:0;padding:0;padding-bottom:60px;">
 
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#111111;">

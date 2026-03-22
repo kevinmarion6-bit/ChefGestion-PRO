@@ -705,6 +705,101 @@ function ScanResult({ result, suppliers, onSuppliersChanged }: { result: any; su
     );
   }
 
+  // ─── RÉSULTAT CARTE / MENU ─────────────────────────────
+  if (result.type === 'carte') {
+    const raw = result.data;
+    const carteData = raw?.data ?? raw;
+    const etablissement = carteData?.etablissement || '';
+    const plats = carteData?.plats ?? [];
+    const [showAllPlats, setShowAllPlats] = useState(false);
+
+    // Grouper par catégorie
+    const categories: Record<string, any[]> = {};
+    plats.forEach((p: any) => {
+      const cat = p.categorie || 'Autres';
+      if (!categories[cat]) categories[cat] = [];
+      categories[cat].push(p);
+    });
+
+    const catEmojis: Record<string, string> = {
+      'Entrées': '🥗', 'Plats': '🍽️', 'Desserts': '🍰', 'Fromages': '🧀',
+      'Boissons': '🍷', 'Menus': '📋', 'Autres': '🔹',
+    };
+
+    const totalPlats = plats.length;
+    const prixMoyen = totalPlats > 0 ? plats.reduce((s: number, p: any) => s + (p.prix_ttc || 0), 0) / totalPlats : 0;
+    const prixMax = totalPlats > 0 ? Math.max(...plats.map((p: any) => p.prix_ttc || 0)) : 0;
+    const prixMin = totalPlats > 0 ? Math.min(...plats.filter((p: any) => p.prix_ttc > 0).map((p: any) => p.prix_ttc)) : 0;
+
+    const displayPlats = showAllPlats ? Object.entries(categories) : Object.entries(categories).slice(0, 3);
+
+    return (
+      <View style={sr.card}>
+        <Text style={{ color: '#4ADE80', fontSize: 32, textAlign: 'center' }}>✅</Text>
+        <Text style={sr.title}>CARTE ANALYSÉE</Text>
+
+        {etablissement ? (
+          <Text style={{ color: '#F5F5DC', fontSize: 16, fontWeight: 'bold', textAlign: 'center', marginBottom: 8 }}>
+            🍽️ {etablissement}
+          </Text>
+        ) : null}
+
+        {/* KPIs */}
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, width: '100%' }}>
+          <View style={{ flex: 1, backgroundColor: '#111', borderRadius: 8, padding: 8, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(212,175,55,0.1)' }}>
+            <Text style={{ color: '#8A7A60', fontSize: 7, letterSpacing: 1, textTransform: 'uppercase' }}>Plats</Text>
+            <Text style={{ color: '#D4AF37', fontSize: 18, fontWeight: 'bold', marginTop: 2 }}>{totalPlats}</Text>
+          </View>
+          <View style={{ flex: 1, backgroundColor: '#111', borderRadius: 8, padding: 8, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(212,175,55,0.1)' }}>
+            <Text style={{ color: '#8A7A60', fontSize: 7, letterSpacing: 1, textTransform: 'uppercase' }}>Prix moyen</Text>
+            <Text style={{ color: '#D4AF37', fontSize: 18, fontWeight: 'bold', marginTop: 2 }}>{prixMoyen.toFixed(0)}€</Text>
+          </View>
+          <View style={{ flex: 1, backgroundColor: '#111', borderRadius: 8, padding: 8, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(212,175,55,0.1)' }}>
+            <Text style={{ color: '#8A7A60', fontSize: 7, letterSpacing: 1, textTransform: 'uppercase' }}>Fourchette</Text>
+            <Text style={{ color: '#F5F5DC', fontSize: 14, fontWeight: 'bold', marginTop: 2 }}>{prixMin.toFixed(0)}–{prixMax.toFixed(0)}€</Text>
+          </View>
+        </View>
+
+        {/* Catégories et plats */}
+        <View style={{ marginTop: 14, width: '100%' }}>
+          {displayPlats.map(([cat, items]) => (
+            <View key={cat} style={{ marginBottom: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6, borderBottomWidth: 1, borderBottomColor: 'rgba(212,175,55,0.15)', paddingBottom: 6 }}>
+                <Text style={{ fontSize: 16 }}>{catEmojis[cat] || '🔹'}</Text>
+                <Text style={{ color: '#D4AF37', fontSize: 11, fontFamily: 'Cinzel_700Bold', letterSpacing: 1, textTransform: 'uppercase' }}>
+                  {cat}
+                </Text>
+                <Text style={{ color: '#6B6050', fontSize: 10 }}>({items.length})</Text>
+              </View>
+              {items.map((p: any, i: number) => (
+                <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 5, paddingHorizontal: 4, backgroundColor: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)', borderRadius: 4 }}>
+                  <Text style={{ color: '#F5F5DC', fontSize: 12, flex: 1, marginRight: 8 }} numberOfLines={1}>{p.nom}</Text>
+                  <Text style={{ color: '#D4AF37', fontSize: 13, fontWeight: 'bold' }}>{(p.prix_ttc || 0).toFixed(2)}€</Text>
+                </View>
+              ))}
+            </View>
+          ))}
+        </View>
+
+        {/* Voir plus / Réduire */}
+        {Object.keys(categories).length > 3 && (
+          <TouchableOpacity
+            style={{ alignItems: 'center', paddingVertical: 8, marginTop: 4 }}
+            onPress={() => setShowAllPlats(!showAllPlats)}
+          >
+            <Text style={{ color: '#D4AF37', fontSize: 11, fontFamily: 'Cinzel_700Bold', letterSpacing: 1 }}>
+              {showAllPlats ? '▲  RÉDUIRE' : `▼  VOIR TOUTES LES CATÉGORIES (${Object.keys(categories).length})`}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        <Text style={{ color: '#6B6050', fontSize: 10, textAlign: 'center', marginTop: 12, fontStyle: 'italic' }}>
+          💡 Utilisez ces prix dans Outils → Fiches Techniques pour calculer vos marges
+        </Text>
+      </View>
+    );
+  }
+
   if (result.type === 'haccp') {
     const label = result.data?.label;
     const saved = result.data?.saved;
