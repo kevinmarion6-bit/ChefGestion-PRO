@@ -405,7 +405,6 @@ async function generateCurrentArchive() {
     </table>
   </td></tr>
 </table>
-${extraHtml || ''}
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#111111;position:fixed;bottom:0;left:0;right:0;">
   <tr>
     <td width="33%" style="padding:14px 40px;font-size:10px;color:#8A7A60;font-style:italic;">📄 Document généré automatiquement</td>
@@ -522,16 +521,14 @@ ${cellRows ? sectionBlock('🌬️', 'Cellule de Refroidissement', `${th('Date')
 ${etiquettePhotos.length > 0 ? sectionBlock('🏷️', 'Étiquettes Sanitaires', `${th('N°')}${th('Nom')}${th('Date')}${th('DLC')}`, etiquettePhotos.map((p: any, i: number) => { const bg = i % 2 === 0 ? '#FFF' : '#FAFAF7'; return `<tr><td style="padding:4px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:10px;text-align:center;">${i+1}</td><td style="padding:4px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:10px;">${p.name || 'Étiquette'}</td><td style="padding:4px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:10px;text-align:center;">${p.date || '—'}</td><td style="padding:4px 6px;border-bottom:1px solid #EEE;background:${bg};font-size:10px;text-align:center;">${p.dlc_date || '—'}</td></tr>`; }).join('')) : ''}
 ${huileRows ? sectionBlock('🛢️', 'Huiles de Friture', `${th('Date')}${th('Friteuse')}${th('Test Polaire')}${th('Action')}`, huileRows) : ''}
 ${sectionBlock('🧹', 'Plan de Maîtrise Sanitaire', `${th('Zone')}${th('Fréquence')}${th('Statut')}${th('Dernier')}`, pmsRows)}
-<div class="chart-block">
 <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:10px 40px 4px;">
   <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:6px;"><tr>
     <td width="26" style="font-size:16px;vertical-align:middle;">🌀</td>
     <td style="font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#1A1A1A;font-weight:bold;vertical-align:middle;padding-right:8px;">Nettoyage Hotte Aspirante</td>
     <td width="100%" style="vertical-align:middle;"><table width="100%"><tr><td style="border-bottom:1px solid #D4AF37;height:1px;"></td></tr></table></td>
   </tr></table>
-  <div style="border:1px solid #E8E0D0;border-radius:6px;padding:10px;">${hotteSection}</div>
+  <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E8E0D0;border-collapse:collapse;"><tr><td style="padding:10px;font-size:11px;color:#333;">${hotteSection}</td></tr></table>
 </td></tr></table>
-</div>
 
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#111111;position:fixed;bottom:0;left:0;right:0;">
   <tr>
@@ -849,14 +846,6 @@ ${sectionBlock('🧹', 'Plan de Maîtrise Sanitaire', `${th('Zone')}${th('Fréqu
   </td></tr>
 </table>
 
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#111111;position:fixed;bottom:0;left:0;right:0;">
-  <tr>
-    <td width="33%" style="padding:14px 40px;font-size:10px;color:#8A7A60;font-style:italic;">📄 Document généré automatiquement</td>
-    <td width="34%" style="padding:14px 0;font-size:10px;letter-spacing:3px;color:#D4AF37;text-transform:uppercase;text-align:center;">✦ ChefGestion Pro ✦</td>
-    <td width="33%" style="padding:14px 40px;font-size:10px;color:#8A7A60;text-align:right;">© ${year} — Tous droits réservés</td>
-  </tr>
-</table>
-
 <div style="page-break-after:always;"></div>
 `;
     }
@@ -865,6 +854,13 @@ ${sectionBlock('🧹', 'Plan de Maîtrise Sanitaire', `${th('Zone')}${th('Fréqu
 <html><head><meta charset="UTF-8"></head>
 <body style="font-family:Helvetica,Arial,sans-serif;color:#2C2C2C;margin:0;padding:0;padding-bottom:60px;">
 ${pagesHtml}
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#111111;position:fixed;bottom:0;left:0;right:0;">
+  <tr>
+    <td width="33%" style="padding:14px 40px;font-size:10px;color:#8A7A60;font-style:italic;">📄 Document généré automatiquement</td>
+    <td width="34%" style="padding:14px 0;font-size:10px;letter-spacing:3px;color:#D4AF37;text-transform:uppercase;text-align:center;">✦ ChefGestion Pro ✦</td>
+    <td width="33%" style="padding:14px 40px;font-size:10px;color:#8A7A60;text-align:right;">© ${year} — Tous droits réservés</td>
+  </tr>
+</table>
 </body></html>`;
 
     try {
