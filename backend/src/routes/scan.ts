@@ -511,16 +511,30 @@ router.post('/haccp-label', requireAuth, upload.single('image'), async (req: Aut
     const apiKey = getApiKey();
     const b64 = req.file.buffer.toString('base64');
  
-    const prompt = `Tu es un expert en lecture d'étiquettes alimentaires HACCP.
+    const prompt = `Tu es un expert en lecture d'étiquettes alimentaires HACCP en restauration française.
 Analyse cette image d'étiquette et extrais les informations suivantes.
-IMPORTANT : La date peut être une DLC (Date Limite de Consommation), une DDM (Date de Durabilité Minimale, anciennement DLUO), ou une DCR (Date de Consommation Recommandée). Extrais la date quel que soit son type.
+
+IMPORTANT :
+1. La date peut être une DLC (Date Limite de Consommation), une DDM (Date de Durabilité Minimale), ou une DCR (Date de Consommation Recommandée). Extrais la date quel que soit son type.
+2. ESTAMPILLE SANITAIRE : Cherche le marquage ovale obligatoire sur les produits d'origine animale.
+   Format : "FR 00-000-00 CE" où :
+   - FR = pays d'implantation
+   - Premier nombre = numéro de département
+   - Deuxième nombre = numéro de commune
+   - Troisième nombre = numéro du site de production
+   - CE = Communauté Européenne
+   L'estampille peut aussi être sous forme "FR 00.000.00 CE" ou avec des espaces.
+   Normalise-la au format "FR 00-000-00 CE" (avec des tirets).
+   Si le pays n'est pas FR, utilise le code pays visible (DE, IT, ES, etc.).
+
 Réponds UNIQUEMENT en JSON valide (sans markdown, sans backtick) :
-{"nom":"nom du produit","dlc":"YYYY-MM-DD","lot":"numéro de lot si visible","fournisseur":"si visible","date_type":"DLC ou DDM ou DCR"}
+{"nom":"nom du produit","dlc":"YYYY-MM-DD","lot":"numéro de lot si visible","fournisseur":"si visible","date_type":"DLC ou DDM ou DCR","estampille":"FR 00-000-00 CE ou null si non visible"}
 Si aucune date n'est lisible, mets null pour dlc.
-Si la date est au format JJ/MM/AAAA ou JJ.MM.AAAA, convertis-la en YYYY-MM-DD.`;
+Si la date est au format JJ/MM/AAAA ou JJ.MM.AAAA, convertis-la en YYYY-MM-DD.
+Si aucune estampille n'est visible, mets null pour estampille.`;
  
     const raw = await enqueueGemini(() => callGemini(apiKey, prompt, b64, req.file!.mimetype));
-    const data = parseGeminiJSON<{ nom: string; dlc: string | null; lot: string; fournisseur: string }>(raw);
+    const data = parseGeminiJSON<{ nom: string; dlc: string | null; lot: string; fournisseur: string; estampille: string | null }>(raw);
  
     if (!data) {
       res.status(422).json({ ok: false, error: 'Lecture étiquette échouée' });
@@ -547,6 +561,7 @@ Si la date est au format JJ/MM/AAAA ou JJ.MM.AAAA, convertis-la en YYYY-MM-DD.`;
         dlc_nom: data.nom || null,
         dlc_active: false,
         lot: data.lot || null,
+        estampille: data.estampille || null,
       })
       .select('id')
       .single();
@@ -554,7 +569,7 @@ Si la date est au format JJ/MM/AAAA ou JJ.MM.AAAA, convertis-la en YYYY-MM-DD.`;
     res.json({
       ok: true,
       data: {
-        label: data,
+        label: { ...data, estampille: data.estampille || null },
         saved: !!data.dlc,
         photo_id: savedPhoto?.id || null,
       },

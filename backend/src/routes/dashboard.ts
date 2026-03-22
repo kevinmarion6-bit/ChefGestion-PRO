@@ -156,7 +156,8 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
     const { data: fridges } = await supabase
       .from('fridges')
       .select('id, nom')
-      .in('user_id', userIds);
+      .in('user_id', userIds)
+      .eq('actif', true);
 
     const fridgeCount = (fridges ?? []).length;
     const todayLogs = (todayTemps ?? []).filter(l => 

@@ -1525,7 +1525,7 @@ function HaccpPage({ goBack, state, addHaccpPhoto, refreshDashboard }: any) {
         <th style="background-color:#111;color:#D4AF37;padding:6px 10px;font-size:9px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;text-align:center;border:1px solid #E8E0D0;">N°</th>
         <th style="background-color:#111;color:#D4AF37;padding:6px 10px;font-size:9px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;text-align:center;border:1px solid #E8E0D0;">Photo</th>
         <th style="background-color:#111;color:#D4AF37;padding:6px 10px;font-size:9px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;text-align:left;border:1px solid #E8E0D0;">Nom</th>
-        <th style="background-color:#111;color:#D4AF37;padding:6px 10px;font-size:9px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;text-align:left;border:1px solid #E8E0D0;">Date</th>
+        <th style="background-color:#111;color:#D4AF37;padding:6px 10px;font-size:9px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;text-align:left;border:1px solid #E8E0D0;">Date</th><th style="background:#111;color:#D4AF37;padding:6px 10px;font-size:9px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;text-align:center;border:1px solid #E8E0D0;">Estampille</th>
       </tr>
       ${photoRows}
     </table>

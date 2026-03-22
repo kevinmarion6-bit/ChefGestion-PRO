@@ -104,9 +104,26 @@ const navigation = useNavigation();
 useEffect(() => {
   const unsubscribe = navigation.addListener('focus', () => {
     refreshTodayLogs();
+    // Recharger les frigos au cas où l'utilisateur en a ajouté/supprimé
+    (async () => {
+      try {
+        const token = await getToken();
+        const res = await fetch('https://chefgestion-pro.onrender.com/api/fridges', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const json = await res.json();
+        if (json.ok) {
+          setFridges(json.data ?? []);
+          // Si le frigo sélectionné n'existe plus, le désélectionner
+          if (selectedFridgeId && !(json.data ?? []).some((f: any) => f.id === selectedFridgeId)) {
+            setSelectedFridgeId(null);
+          }
+        }
+      } catch {}
+    })();
   });
   return unsubscribe;
-}, [navigation]);
+}, [navigation, selectedFridgeId]);
 
 function isFridgeDoneForCurrentService(fridgeId: string): boolean {
   const now = new Date();
@@ -735,6 +752,12 @@ function ScanResult({ result, suppliers, onSuppliersChanged }: { result: any; su
           <Text style={{ color: '#6B6050', fontSize: 11, textAlign: 'center', marginTop: 6 }}>
             Lot : {label.lot}
           </Text>
+        ) : null}
+        {label?.estampille ? (
+          <View style={{ backgroundColor: 'rgba(212,175,55,0.08)', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14, marginTop: 10, borderWidth: 1, borderColor: 'rgba(212,175,55,0.2)' }}>
+            <Text style={{ color: '#8A7A60', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', textAlign: 'center', marginBottom: 4 }}>Estampille sanitaire</Text>
+            <Text style={{ color: '#D4AF37', fontSize: 15, fontWeight: 'bold', textAlign: 'center', letterSpacing: 1 }}>{label.estampille}</Text>
+          </View>
         ) : null}
         <Text style={{ color: '#9A8060', fontSize: 11, textAlign: 'center', marginTop: 10, fontStyle: 'italic' }}>
           {saved ? '📅 DLC détectée · Photo sauvegardée' : 'Photo sauvegardée (DLC non détectée)'}
