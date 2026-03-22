@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, TextInput, Image, StyleSheet,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import { router } from 'expo-router';
 import { Colors, Spacing, Radius } from '@/constants/Theme';
 import { Card, Btn, ListItem, Empty, SectionTitle } from '@/components/UI';
@@ -197,7 +198,12 @@ function FichesPage({ goBack }: { goBack: () => void }) {
     </body></html>`;
 
     try {
-      await Print.printAsync({ html });
+      const { uri } = await Print.printToFileAsync({ html });
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `Fiche — ${fiche.nom}`, UTI: 'com.adobe.pdf' });
+      } else {
+        await Print.printAsync({ html });
+      }
     } catch {
       Alert.alert('Erreur', "Impossible d'exporter en PDF.");
     }
@@ -405,7 +411,12 @@ function RatiosArchivePage({ goBack }: { goBack: () => void }) {
                       try {
                         const response = await fetch(a.download_url);
                         const html = await response.text();
-                        await Print.printAsync({ html });
+                        const { uri } = await Print.printToFileAsync({ html });
+                        if (await Sharing.isAvailableAsync()) {
+                          await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `Ratios — ${a.month_label}`, UTI: 'com.adobe.pdf' });
+                        } else {
+                          await Print.printAsync({ html });
+                        }
                       } catch { Alert.alert('Erreur', 'Impossible de générer le PDF.'); }
                     }}
                   >
@@ -454,14 +465,20 @@ export default function MoreScreen() {
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <SectionTitle>Modules</SectionTitle>
+        <SectionTitle>Hygiène</SectionTitle>
+        <Card>
+          <ListItem icon="🌡️" title="Traçabilité HACCP" subtitle="Relevés températures, étiquettes & archivage" onPress={() => goSub('haccp')} />
+        </Card>
+
+        <SectionTitle>Achats</SectionTitle>
         <Card>
           <ListItem icon="🏭" title="Fournisseurs" subtitle="Catalogue produits & comparateur prix" onPress={() => goSub('suppliers')} />
-          <ListItem icon="🌡️" title="Traçabilité HACCP" subtitle="Étiquettes & relevés températures" onPress={() => goSub('haccp')} />
-          <ListItem icon="⚙️" title="Paramètres" subtitle="Compte & données" onPress={() => goSub('settings')} />
-          <ListItem icon="🍽️" title="Restaurant" subtitle="Session collaborative & équipe" onPress={() => goSub('restaurant')} />
-          <ListItem icon="📋" title="Répertoire de Fiches Techniques" subtitle="Vos recettes sauvegardées" onPress={() => goSub('fiches')} />
-          <ListItem icon="📊" title="Ratios & Indicateurs Financiers" subtitle="Archives mensuelles & export PDF" onPress={() => goSub('ratios')} />
+        </Card>
+
+        <SectionTitle>Outils</SectionTitle>
+        <Card>
+          <ListItem icon="📋" title="Fiches Techniques" subtitle="Répertoire de vos recettes" onPress={() => goSub('fiches')} />
+          <ListItem icon="📊" title="Ratios & Indicateurs" subtitle="Suivi financier & export PDF" onPress={() => goSub('ratios')} />
         </Card>
 
         <SectionTitle>Mon compte</SectionTitle>
@@ -473,6 +490,8 @@ export default function MoreScreen() {
               <Text style={styles.profileEmail}>{user?.email}</Text>
             </View>
           </View>
+          <ListItem icon="🍽️" title="Restaurant" subtitle="Session collaborative & équipe" onPress={() => goSub('restaurant')} />
+          <ListItem icon="⚙️" title="Paramètres" subtitle="Compte & données" onPress={() => goSub('settings')} />
           <View style={{ padding: 14, paddingTop: 0 }}>
             <Btn label="Se déconnecter" onPress={() => { logout(); router.replace('/(auth)/login'); }} variant="outline" />
           </View>
@@ -1072,7 +1091,12 @@ function SuppliersPage({ goBack }: any) {
 </table>
 </body></html>`;
 
-              await Print.printAsync({ html });
+              const { uri } = await Print.printToFileAsync({ html });
+              if (await Sharing.isAvailableAsync()) {
+                await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Export PDF', UTI: 'com.adobe.pdf' });
+              } else {
+                await Print.printAsync({ html });
+              }
             } catch {
               Alert.alert('Erreur', 'Impossible de générer le PDF.');
             }
@@ -1131,7 +1155,7 @@ function HaccpPage({ goBack, state, addHaccpPhoto, refreshDashboard }: any) {
   const [loadingFridges, setLoadingFridges] = useState(true);
   const [showAddFridge, setShowAddFridge]   = useState(false);
   const [newFridgeName, setNewFridgeName]   = useState('');
-  const [newFridgeType, setNewFridgeType] = useState<'positif' | 'negatif' | 'cellule'>('positif');
+  const [newFridgeType, setNewFridgeType] = useState<'positif' | 'negatif'>('positif');
   const [tempRange, setTempRange] = useState<'poissons' | 'viandes' | 'legumes'>('viandes');
   const [fridgeEmoji, setFridgeEmoji] = useState('🥩');
   const [photos, setPhotos] = useState<any[]>(state?.haccpPhotos || []);
@@ -1142,6 +1166,13 @@ function HaccpPage({ goBack, state, addHaccpPhoto, refreshDashboard }: any) {
   const [photoArchives, setPhotoArchives] = useState<any[]>([]);
   const [photoArchivesLoading, setPhotoArchivesLoading] = useState(false);
   const [showPhotoArchives, setShowPhotoArchives] = useState(false);
+  const [showHotte, setShowHotte]               = useState(false);
+  const [hottePhotos, setHottePhotos]           = useState<any[]>([]);
+  const [showEtiquettes, setShowEtiquettes]     = useState(false);
+  const [etiquettePhotos, setEtiquettePhotos]   = useState<any[]>([]);
+  const [etiquetteLoading, setEtiquetteLoading] = useState(false);
+  const [selectedEtiquette, setSelectedEtiquette] = useState<any>(null);
+  const [exportingAll, setExportingAll]         = useState(false);
 
   useEffect(() => { 
     loadFridges(); 
@@ -1215,7 +1246,6 @@ function HaccpPage({ goBack, state, addHaccpPhoto, refreshDashboard }: any) {
     if (!newFridgeName.trim()) { Alert.alert('Erreur', 'Donne un nom à cet équipement'); return; }
     let temp_min = 0, temp_max = 4;
     if (newFridgeType === 'negatif') { temp_min = -21; temp_max = -18; }
-    else if (newFridgeType === 'cellule') { temp_min = 0; temp_max = 3; }
     else if (newFridgeType === 'positif') {
       if (tempRange === 'poissons') { temp_min = 0; temp_max = 2; }
       else if (tempRange === 'viandes') { temp_min = 0; temp_max = 4; }
@@ -1331,15 +1361,6 @@ function HaccpPage({ goBack, state, addHaccpPhoto, refreshDashboard }: any) {
                     <Text style={{ color: newFridgeType === 'negatif' ? '#000' : '#D4AF37', fontSize: 11, marginTop: 4, fontWeight: 'bold' }}>CONGÉLATEUR</Text>
                   </TouchableOpacity>
                 </View>
-
-                <TouchableOpacity
-                  style={{ padding: 12, borderRadius: 8, alignItems: 'center', backgroundColor: newFridgeType === 'cellule' ? '#D4AF37' : '#1a1a1a', borderWidth: 1, borderColor: '#D4AF37' }}
-                  onPress={() => { setNewFridgeType('cellule'); setFridgeEmoji('🌬️'); }}
-                >
-                  <Text style={{ fontSize: 20 }}>🌬️</Text>
-                  <Text style={{ color: newFridgeType === 'cellule' ? '#000' : '#D4AF37', fontSize: 11, marginTop: 4, fontWeight: 'bold' }}>CELLULE DE REFROIDISSEMENT RAPIDE</Text>
-                  <Text style={{ color: newFridgeType === 'cellule' ? '#333' : '#666', fontSize: 10 }}>+63°C → +10°C en 2h max</Text>
-                </TouchableOpacity>
 
                 {newFridgeType === 'positif' && (
                   <View style={{ gap: 6, marginTop: 4 }}>
@@ -1520,7 +1541,12 @@ function HaccpPage({ goBack, state, addHaccpPhoto, refreshDashboard }: any) {
 </table>
 </body></html>`;
 
-              await Print.printAsync({ html });
+              const { uri } = await Print.printToFileAsync({ html });
+              if (await Sharing.isAvailableAsync()) {
+                await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Export PDF', UTI: 'com.adobe.pdf' });
+              } else {
+                await Print.printAsync({ html });
+              }
             } catch {
               Alert.alert('Erreur', 'Impossible de générer le PDF.');
             }

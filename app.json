@@ -1,39 +1,61 @@
 {
-"expo": {
-"name": "ChefGestion PRO",
-"slug": "chefgestion-pro-dev",
-"scheme": "chef-gestion",
-"owner": "chefgestion-pro",
-"version": "1.0.0",
-"orientation": "portrait",
-"icon": "./assets/icon.png",
-"userInterfaceStyle": "light",
-"splash": {
-"image": "./assets/splash.png",
-"resizeMode": "cover",
-"backgroundColor": "#ffffff"
-},
-"assetBundlePatterns": [
-"**/*"
-],
-"ios": {
-"supportsTablet": true,
-"bundleIdentifier": "com.kevin3166.chefgestionmonorepo"
-},
-"android": {
-"adaptiveIcon": {
-"foregroundImage": "./assets/adaptive-icon.png",
-"backgroundColor": "#ffffff"
-},
-"package": "com.kevin3166.chefgestionmonorepo"
-},
-"web": {
-"favicon": "./assets/favicon.png"
-},
-"extra": {
-"eas": {
-"projectId": "63dac985-d0f6-4c0d-9214-691427bfeb72"
-}
-}
-}
+  "expo": {
+    "name": "ChefGestion PRO",
+    "slug": "chefgestion-pro-dev",
+    "scheme": "chef-gestion",
+    "owner": "chefgestion-pro",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.kevin3166.chefgestionmonorepo"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.kevin3166.chefgestionmonorepo"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "L'app a besoin de la caméra pour scanner températures et étiquettes."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "L'app a besoin d'accéder à vos photos."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#D4AF37"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "63dac985-d0f6-4c0d-9214-691427bfeb72"
+      }
+    }
+  }
 }

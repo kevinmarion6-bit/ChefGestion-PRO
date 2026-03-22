@@ -33,8 +33,27 @@
       "package": "com.chefgestion.pro.dev"
     },
     "plugins": [
-      "expo-router"
-    ],
+  "expo-router",
+  [
+    "expo-camera",
+    {
+      "cameraPermission": "L'app a besoin d'accéder à la caméra pour scanner les températures et étiquettes."
+    }
+  ],
+  [
+    "expo-image-picker",
+    {
+      "photosPermission": "L'app a besoin d'accéder à vos photos pour importer des documents."
+    }
+  ],
+  [
+    "expo-notifications",
+    {
+      "icon": "./assets/icon.png",
+      "color": "#D4AF37"
+    }
+  ]
+],
     "experiments": {
       "typedRoutes": true
     },

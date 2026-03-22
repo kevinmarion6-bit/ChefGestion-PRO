@@ -104,10 +104,24 @@ export async function callGemini(
 // ─── PROMPTS ─────────────────────────────────────────────
 
 export const PROMPTS = {
-  invoice: `Tu es un expert OCR pour factures fournisseurs de restauration française.
-Analyse cette image et extrais en JSON strict (sans markdown ni backticks):
-{"fournisseur":"","numero_facture":"","date":"DD/MM/YYYY","produits":[{"nom":"","unite":"kg|L|pièce|colis","prix_ht":0,"quantite":0,"total_ht":0}],"total_ht":0,"tva":0,"total_ttc":0}
-Retourne UNIQUEMENT le JSON valide.`,
+  invoice: `Tu es un expert OCR spécialisé dans les factures fournisseurs de restauration française.
+Analyse cette image de facture et extrais TOUTES les informations en JSON strict (sans markdown, sans backticks, sans commentaires).
+
+RÈGLES IMPORTANTES :
+1. FOURNISSEUR : Extrais le nom EXACT de l'entreprise qui émet la facture (en-tête, logo, ou mentions légales). Ne confonds pas avec le client.
+2. PRODUITS : Pour CHAQUE ligne de produit :
+   - "nom" : nom complet du produit tel qu'écrit sur la facture
+   - "unite" : l'unité exacte de la facture (KG, L, PC (pièce), BTTE (botte), COLIS, LOT, BQ (barquette), SAC). Si c'est un produit surgelé, ajoute " (surgelé)" au nom.
+   - "prix_ht" : le prix HT UNITAIRE (par KG, par L, par PC, etc.) — PAS le total de la ligne
+   - "quantite" : la quantité commandée
+   - "total_ht" : prix_ht × quantite = total HT de cette ligne
+3. TOTAUX : total_ht = somme de tous les total_ht des produits. tva et total_ttc si visibles.
+4. Si un prix est ambigu, vérifie : prix_unitaire × quantité ≈ total_ligne
+
+Format JSON :
+{"fournisseur":"NOM EXACT","numero_facture":"","date":"DD/MM/YYYY","produits":[{"nom":"","unite":"KG|L|PC|BTTE|COLIS|LOT","prix_ht":0,"quantite":0,"total_ht":0}],"total_ht":0,"tva":0,"total_ttc":0}
+
+Retourne UNIQUEMENT le JSON valide, rien d'autre.`,
 
  temperature: `Tu es un expert en lecture d'afficheurs LED/LCD de cuisine professionnelle.
 L'image montre UN MÊME ÉCRAN photographié sous plusieurs traitements différents.
@@ -136,6 +150,14 @@ L'image montre UN MÊME ÉCRAN photographié sous plusieurs traitements différe
 5. COMPARE LES VERSIONS : L'image contient plusieurs variantes de traitement.
    Vote majoritaire entre les variantes pour choisir la bonne lecture.
 
+6. NE PAS INVENTER DE DÉCIMALES : Si l'afficheur montre clairement "23" (deux segments nets),
+   la réponse est 23, PAS 2.3 ni 23.23. Un afficheur LED 7-segments n'affiche pas
+   le même chiffre deux fois comme décimale (ex: "2.23" est presque toujours une erreur de lecture de "23").
+
+7. DOUBLONS : Si tu lis "2323" ou "1414", c'est le même nombre lu deux fois → "23" ou "14".
+   Si tu lis "2.23", vérifie : est-ce que l'afficheur montre "2.2" avec un "3" parasite,
+   ou est-ce simplement "23" mal interprété ? Préfère la lecture la plus simple.
+
 Réponds UNIQUEMENT en JSON valide :
 {"temperature": number, "confiance": 0-100, "erreur": string | null}
 
@@ -145,10 +167,21 @@ Exemples corrects :
 - Afficheur "5.4" → {"temperature": 5.4, "confiance": 95, "erreur": null}
 `,
 
-  carte: `Tu es expert en analyse de cartes de restaurants français.
-Extrais tous les plats et prix TTC.
-JSON strict (sans markdown) :
-{"etablissement":"","plats":[{"categorie":"Entrées|Plats|Desserts|Fromages|Boissons","nom":"","prix_ttc":0}]}`,
+  carte: `Tu es expert en analyse de cartes et menus de restaurants français.
+Extrais CHAQUE plat avec son prix de vente TTC.
+
+RÈGLES :
+1. Lis TOUTES les catégories présentes (Entrées, Plats, Desserts, Fromages, Boissons, Menus/Formules, etc.)
+2. Pour chaque plat, extrais le nom EXACT tel qu'écrit et le prix TTC affiché
+3. Si un menu/formule a un prix global, crée une entrée avec le nom de la formule et son prix
+4. Si un plat a plusieurs tailles/options avec des prix différents, crée une entrée par option
+5. Les prix sont en euros (€). Convertis les virgules en points pour les décimales
+6. Si la catégorie n'est pas claire, utilise "Autres"
+
+JSON strict (sans markdown, sans backticks) :
+{"etablissement":"NOM DU RESTAURANT SI VISIBLE","plats":[{"categorie":"Entrées|Plats|Desserts|Fromages|Boissons|Menus|Autres","nom":"NOM EXACT DU PLAT","prix_ttc":0.00}]}
+
+Retourne UNIQUEMENT le JSON valide.`,
 
   recipes: (style: string, cat: string, products: string) =>
     `Génère 8 ${cat} style ${style} avec: ${products}.

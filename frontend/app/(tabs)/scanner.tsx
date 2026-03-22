@@ -151,7 +151,9 @@ function isFridgeDoneForCurrentService(fridgeId: string): boolean {
       const cropW   = FRAME_WIDTH  * scaleX;
       const cropH   = FRAME_HEIGHT * scaleY;
       const originX = offsetX + (effectivePhotoWidth  - cropW) / 2;
-      const originY = offsetY + (effectivePhotoHeight - cropH) / 2 - (cropH * 0.15);
+      // Ajuster le décalage vertical selon le type de scan
+      const yShift = scanType === 'temperature' ? (cropH * 0.05) : (cropH * 0.08);
+      const originY = Math.max(0, offsetY + (effectivePhotoHeight - cropH) / 2 - yShift);
       const cropped = await ImageManipulator.manipulateAsync(
         photo.uri,
         [{ crop: { originX: Math.round(originX), originY: Math.round(originY), width: Math.round(cropW), height: Math.round(cropH) }}],
